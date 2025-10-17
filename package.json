@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "latest",
     "mongoose": "8.6.0",
     "next": "latest",
