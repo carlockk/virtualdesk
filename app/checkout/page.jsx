@@ -5,6 +5,12 @@ import { SERVICES } from '@/data/services';
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
+const formatCurrencyCLP = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '0';
+  return number.toLocaleString('es-CL');
+};
+
 export default function CheckoutPage() {
   const params = useSearchParams();
   const router = useRouter();
@@ -68,7 +74,7 @@ export default function CheckoutPage() {
           <div className="mb-6 p-4 border rounded-xl bg-indigo-50">
             <div className="font-semibold text-indigo-700">{service.name}</div>
             <div className="text-sm text-gray-700">{service.description}</div>
-            <div className="mt-1 font-bold text-gray-900">${service.price.toLocaleString('es-CL')}</div>
+            <div className="mt-1 font-bold text-gray-900">${formatCurrencyCLP(service?.price)}</div>
           </div>
 
           <form onSubmit={submit} className="space-y-4">

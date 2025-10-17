@@ -3,6 +3,18 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useEffect, useState, Suspense } from 'react';
 
+const formatDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+};
+
+const formatCurrencyCLP = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '0';
+  return number.toLocaleString('es-CL');
+};
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [guest, setGuest] = useState([]);
@@ -45,16 +57,16 @@ export default function OrdersPage() {
                   <li key={o._id} className="border rounded-xl p-4">
                     <div className="flex justify-between mb-1">
                       <span className="font-semibold">#{o._id}</span>
-                      <span className="text-sm text-gray-500">{new Date(o.createdAt).toLocaleString()}</span>
+                      <span className="text-sm text-gray-500">{formatDateTime(o?.createdAt)}</span>
                     </div>
                     <div className="text-sm text-gray-700">{o.clientName} — {o.clientEmail}</div>
                     <ul className="mt-2 text-sm list-disc pl-5">
                       {o.items.map((it, idx) => (
-                        <li key={idx}>{it.serviceName} — ${ (it.unitPrice*it.quantity).toLocaleString('es-CL') }</li>
+                        <li key={idx}>{it.serviceName} - ${formatCurrencyCLP(it.unitPrice * it.quantity)}</li>
                       ))}
                     </ul>
                     <div className="mt-2 font-semibold">
-                      Total: ${ o.items.reduce((s, it)=>s+it.unitPrice*it.quantity,0).toLocaleString('es-CL') }
+                      Total: ${formatCurrencyCLP(o.items.reduce((s, it)=>s + (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0), 0))}
                     </div>
                   </li>
                 ))}
@@ -70,11 +82,11 @@ export default function OrdersPage() {
                 <li key={i} className="border rounded-xl p-4">
                   <div className="flex justify-between mb-1">
                     <span className="font-semibold">{g.service?.name}</span>
-                    <span className="text-sm text-gray-500">{new Date(g.when).toLocaleString()}</span>
+                    <span className="text-sm text-gray-500">{formatDateTime(g?.when)}</span>
                   </div>
                   <div className="text-sm text-gray-700">{g.name} — {g.email}</div>
                   <div className="mt-2 text-sm">{g.service?.description}</div>
-                  <div className="mt-2 font-semibold">Precio: ${ (g.service?.price || 0).toLocaleString('es-CL') }</div>
+                  <div className="mt-2 font-semibold">Precio: ${formatCurrencyCLP(g.service?.price)}</div>
                 </li>
               ))}
             </ul>

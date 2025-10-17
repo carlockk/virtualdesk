@@ -3,6 +3,12 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 
+const formatDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+};
+
 export default function AdminMessagesPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -116,7 +122,7 @@ export default function AdminMessagesPage() {
           </span>
           <span className="whitespace-pre-wrap break-words block">{message.text}</span>
           <span className="block text-[10px] opacity-70 mt-1">
-            {new Date(message.createdAt).toLocaleString()}
+            {formatDateTime(message?.createdAt)}
           </span>
         </div>
       </div>
@@ -171,9 +177,7 @@ export default function AdminMessagesPage() {
                       {conversation.lastMessage?.text || 'Sin mensajes'}
                     </span>
                     <span className="text-[10px] text-gray-400 mt-1">
-                      {conversation.lastMessage?.createdAt
-                        ? new Date(conversation.lastMessage.createdAt).toLocaleString()
-                        : ''}
+                      {formatDateTime(conversation.lastMessage?.createdAt)}
                     </span>
                   </div>
                 </button>

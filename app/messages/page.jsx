@@ -3,6 +3,12 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
+const formatDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+};
+
 export default function MessagesPage() {
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -96,7 +102,7 @@ export default function MessagesPage() {
                         </span>
                         <span className="whitespace-pre-wrap break-words block">{message.text}</span>
                         <span className="block text-[10px] opacity-70 mt-1">
-                          {new Date(message.createdAt).toLocaleString()}
+                          {formatDateTime(message?.createdAt)}
                         </span>
                       </div>
                     </div>
