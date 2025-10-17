@@ -11,8 +11,8 @@ function json(body, init = {}) {
   });
 }
 
-export async function POST(req) {
-  const session = await getSession(req);
+export async function POST() {
+  const session = getSession();
   if (!session) {
     return json({ ok: false, message: 'Autenticación requerida' }, { status: 401 });
   }
@@ -29,21 +29,21 @@ export async function POST(req) {
   }
 
   if (user.role === 'admin') {
-    const token = await signSession({
+    const token = signSession({
       uid: String(user._id),
       name: user.name,
       email: user.email,
       role: 'admin',
     });
     const res = json({ ok: true, message: 'Ya tienes rol de administrador.' });
-    await setSessionCookie(res, token);
+    setSessionCookie(res, token);
     return res;
   }
 
   user.role = 'admin';
   await user.save();
 
-  const token = await signSession({
+  const token = signSession({
     uid: String(user._id),
     name: user.name,
     email: user.email,
@@ -51,12 +51,10 @@ export async function POST(req) {
   });
 
   const res = json({ ok: true, message: 'Rol de administrador otorgado.' });
-  await setSessionCookie(res, token);
+  setSessionCookie(res, token);
   return res;
 }
 
 export async function GET() {
   return json({ ok: false, message: 'Método no permitido' }, { status: 405 });
 }
-
-

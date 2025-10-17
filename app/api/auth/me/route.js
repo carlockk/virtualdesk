@@ -1,6 +1,5 @@
 import { getSession, clearSessionCookie, signSession, setSessionCookie } from '@/lib/auth';
 import { dbConnect } from '@/lib/mongodb';
-import { serializeUser } from '@/lib/users';
 import User from '@/models/User';
 import { z } from 'zod';
 
@@ -38,22 +37,36 @@ const profileSchema = z
       .optional(),
     businessName: z
       .string()
-      .max(120, 'La razon social es demasiado larga.')
+      .max(120, 'La razón social es demasiado larga.')
       .transform((value) => value.trim())
       .optional(),
   })
   .strict();
 
-export async function GET(req) {
+function serializeUser(userDoc) {
+  return {
+    id: String(userDoc._id),
+    name: userDoc.name,
+    email: userDoc.email,
+    role: userDoc.role || 'user',
+    personType: userDoc.personType || 'natural',
+    phone: userDoc.phone || '',
+    address: userDoc.address || '',
+    rut: userDoc.rut || '',
+    businessName: userDoc.businessName || '',
+  };
+}
+
+export async function GET() {
   try {
-    const session = await getSession(req);
+    const session = getSession();
     if (!session) return json({ user: null });
 
     await dbConnect();
     const user = await User.findById(session.uid).lean();
     if (!user) {
       const res = json({ user: null });
-      await clearSessionCookie(res);
+      clearSessionCookie(res);
       return res;
     }
 
@@ -65,7 +78,7 @@ export async function GET(req) {
 
 export async function PATCH(req) {
   try {
-    const session = await getSession(req);
+    const session = getSession();
     if (!session) {
       return json({ ok: false, message: 'Autenticación requerida.' }, { status: 401 });
     }
@@ -81,7 +94,7 @@ export async function PATCH(req) {
     const user = await User.findById(session.uid);
     if (!user) {
       const res = json({ ok: false, message: 'Usuario no encontrado.' }, { status: 404 });
-      await clearSessionCookie(res);
+      clearSessionCookie(res);
       return res;
     }
 
@@ -96,7 +109,7 @@ export async function PATCH(req) {
 
     await user.save();
 
-    const token = await signSession({
+    const token = signSession({
       uid: String(user._id),
       name: user.name,
       email: user.email,
@@ -104,10 +117,9 @@ export async function PATCH(req) {
     });
 
     const res = json({ ok: true, user: serializeUser(user) });
-    await setSessionCookie(res, token);
+    setSessionCookie(res, token);
     return res;
   } catch (err) {
     return json({ ok: false, message: err.message || 'Error del servidor' }, { status: 500 });
   }
 }
-

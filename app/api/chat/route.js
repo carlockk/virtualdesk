@@ -5,7 +5,7 @@ import User from '@/models/User';
 
 export async function GET(req) {
   try {
-    const session = await getSession(req);
+    const session = getSession();
     const { searchParams } = new URL(req.url);
     const requestedChannel = searchParams.get('channel');
 
@@ -82,7 +82,7 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    const session = await getSession(req);
+    const session = getSession();
     const body = await req.json();
     const text = (body.text || '').toString().trim();
 

@@ -43,7 +43,7 @@ export async function POST(req) {
       return json({ ok: false, message: 'Credenciales inválidas' }, { status: 401 });
     }
 
-    const token = await signSession({
+    const token = signSession({
       uid: String(user._id),
       name: user.name,
       email: user.email,
@@ -54,7 +54,7 @@ export async function POST(req) {
       ok: true,
       user: { name: user.name, email: user.email, role: user.role || 'user' },
     });
-    await setSessionCookie(res, token); // asegúrate de que ponga httpOnly, secure en prod, sameSite=lax, path=/, maxAge
+    setSessionCookie(res, token); // asegúrate de que ponga httpOnly, secure en prod, sameSite=lax, path=/, maxAge
     return res;
   } catch (err) {
     // log interno si quieres: console.error(err)

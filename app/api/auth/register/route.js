@@ -49,7 +49,7 @@ export async function POST(req) {
     const userDoc = await User.create({ name, email: emailNorm, passwordHash, role });
     const user = userDoc.toObject();
 
-    const token = await signSession({
+    const token = signSession({
       uid: String(user._id),
       name: user.name,
       email: user.email,
@@ -60,7 +60,7 @@ export async function POST(req) {
       ok: true,
       user: { name: user.name, email: user.email, role: user.role },
     });
-    await setSessionCookie(res, token);
+    setSessionCookie(res, token);
     return res;
   } catch (err) {
     // log interno si quieres: console.error(err)
