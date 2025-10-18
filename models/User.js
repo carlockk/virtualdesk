@@ -11,6 +11,7 @@ const UserSchema = new mongoose.Schema(
     address: { type: String, default: '', trim: true },
     rut: { type: String, default: '', trim: true },
     businessName: { type: String, default: '', trim: true },
+    avatarUrl: { type: String, default: '', trim: true },
   },
   { timestamps: true }
 );

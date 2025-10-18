@@ -22,12 +22,12 @@ const profileSchema = z
     personType: z.enum(['natural', 'empresa']).optional(),
     phone: z
       .string()
-      .max(30, 'El teléfono es demasiado largo.')
+      .max(30, 'El telefono es demasiado largo.')
       .transform((value) => value.trim())
       .optional(),
     address: z
       .string()
-      .max(200, 'La dirección es demasiado larga.')
+      .max(200, 'La direccion es demasiado larga.')
       .transform((value) => value.trim())
       .optional(),
     rut: z
@@ -37,8 +37,12 @@ const profileSchema = z
       .optional(),
     businessName: z
       .string()
-      .max(120, 'La razón social es demasiado larga.')
+      .max(120, 'La razon social es demasiado larga.')
       .transform((value) => value.trim())
+      .optional(),
+    avatarUrl: z
+      .string()
+      .url('La URL del avatar no es valida.')
       .optional(),
   })
   .strict();
@@ -49,6 +53,7 @@ function serializeUser(userDoc) {
     name: userDoc.name,
     email: userDoc.email,
     role: userDoc.role || 'user',
+    avatarUrl: userDoc.avatarUrl || '',
     personType: userDoc.personType || 'natural',
     phone: userDoc.phone || '',
     address: userDoc.address || '',
@@ -80,13 +85,13 @@ export async function PATCH(req) {
   try {
     const session = getSession();
     if (!session) {
-      return json({ ok: false, message: 'Autenticación requerida.' }, { status: 401 });
+      return json({ ok: false, message: 'Autenticacion requerida.' }, { status: 401 });
     }
 
     const raw = await req.json().catch(() => ({}));
     const parsed = profileSchema.safeParse(raw);
     if (!parsed.success) {
-      const first = parsed.error.errors[0]?.message || 'Datos inválidos';
+      const first = parsed.error.errors[0]?.message || 'Datos invalidos';
       return json({ ok: false, message: first }, { status: 400 });
     }
 
@@ -106,6 +111,7 @@ export async function PATCH(req) {
     if (typeof updates.address !== 'undefined') user.address = updates.address;
     if (typeof updates.rut !== 'undefined') user.rut = updates.rut;
     if (typeof updates.businessName !== 'undefined') user.businessName = updates.businessName;
+    if (typeof updates.avatarUrl !== 'undefined') user.avatarUrl = updates.avatarUrl;
 
     await user.save();
 

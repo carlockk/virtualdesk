@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useAuthPanel } from '@/components/AuthPanelProvider';
@@ -18,6 +18,9 @@ const INITIAL_FORM = {
 export default function ProfilePage() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [status, setStatus] = useState({ loading: true, saving: false, message: '', error: '' });
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarStatus, setAvatarStatus] = useState({ uploading: false, message: '', error: '' });
+  const fileInputRef = useRef(null);
   const { show } = useAuthPanel();
 
   useEffect(() => {
@@ -36,13 +39,18 @@ export default function ProfilePage() {
             rut: data.user.rut || '',
             businessName: data.user.businessName || '',
           });
+          setAvatarUrl(data.user.avatarUrl || '');
+          setAvatarStatus({ uploading: false, message: '', error: '' });
           setStatus({ loading: false, saving: false, message: '', error: '' });
         } else {
+          setForm({ ...INITIAL_FORM });
+          setAvatarUrl('');
+          setAvatarStatus({ uploading: false, message: '', error: '' });
           setStatus({
             loading: false,
             saving: false,
             message: '',
-            error: 'Necesitas iniciar sesión para ver tu perfil.',
+            error: 'Necesitas iniciar sesion para ver tu perfil.',
           });
         }
       })
@@ -63,6 +71,84 @@ export default function ProfilePage() {
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const triggerAvatarUpload = () => {
+    if (avatarStatus.uploading) return;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type?.startsWith('image/')) {
+      setAvatarStatus({ uploading: false, message: '', error: 'Selecciona una imagen valida (PNG, JPG, WEBP o GIF).' });
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarStatus({ uploading: false, message: '', error: 'La imagen debe pesar menos de 5 MB.' });
+      event.target.value = '';
+      return;
+    }
+
+    setAvatarStatus({ uploading: true, message: '', error: '' });
+
+    try {
+      const payload = new FormData();
+      payload.append('file', file);
+
+      const res = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        body: payload,
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        setAvatarStatus({
+          uploading: false,
+          message: '',
+          error: data?.message || 'No se pudo actualizar la foto.',
+        });
+        return;
+      }
+
+      if (data.user) {
+        setAvatarUrl(data.user.avatarUrl || '');
+        setForm((prev) => ({
+          ...prev,
+          name: data.user.name || prev.name,
+          email: data.user.email || prev.email,
+          personType: data.user.personType || prev.personType,
+          phone: data.user.phone || prev.phone,
+          address: data.user.address || prev.address,
+          rut: data.user.rut || prev.rut,
+          businessName: data.user.businessName || prev.businessName,
+        }));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('virtualdesk:user-updated', { detail: { user: data.user } }));
+        }
+      }
+
+      setAvatarStatus({
+        uploading: false,
+        message: 'Foto actualizada correctamente.',
+        error: '',
+      });
+    } catch (err) {
+      setAvatarStatus({
+        uploading: false,
+        message: '',
+        error: err.message || 'Error inesperado al subir la imagen.',
+      });
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -92,7 +178,7 @@ export default function ProfilePage() {
           loading: false,
           saving: false,
           message: '',
-          error: data?.message || 'No se pudo guardar la información.',
+          error: data?.message || 'No se pudo guardar la informacion.',
         });
         return;
       }
@@ -139,7 +225,7 @@ export default function ProfilePage() {
             onClick={() => show('login')}
             className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-indigo-700"
           >
-            Iniciar sesión
+            Iniciar sesion
           </button>
         </div>
       );
@@ -147,6 +233,47 @@ export default function ProfilePage() {
 
     return (
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-indigo-100 text-2xl font-semibold uppercase text-indigo-700 shadow-lg ring-4 ring-indigo-50">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Foto de perfil" className="h-full w-full object-cover" />
+            ) : (
+              <span>{(form.name || form.email || 'U').trim().charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm text-gray-600">Sube una imagen cuadrada para que luzca mejor en todo el sitio.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={triggerAvatarUpload}
+                className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-indigo-700 disabled:opacity-60"
+                disabled={avatarStatus.uploading}
+              >
+                {avatarStatus.uploading ? 'Subiendo...' : 'Cambiar foto'}
+              </button>
+              {avatarUrl && (
+                <a
+                  href={avatarUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Ver actual
+                </a>
+              )}
+            </div>
+            {avatarStatus.error && <p className="mt-2 text-sm text-red-600">{avatarStatus.error}</p>}
+            {avatarStatus.message && <p className="mt-2 text-sm text-green-600">{avatarStatus.message}</p>}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarUpload}
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Nombre completo</label>
           <input
@@ -160,13 +287,13 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Correo electrónico</label>
+          <label className="block text-sm font-medium text-gray-700">Correo electronico</label>
           <input
             className="mt-1 w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-600"
             value={form.email}
             disabled
           />
-          <p className="mt-1 text-xs text-gray-500">Este correo está asociado a tu cuenta y no puede modificarse.</p>
+          <p className="mt-1 text-xs text-gray-500">Este correo esta asociado a tu cuenta y no puede modificarse.</p>
         </div>
 
         <div>
@@ -183,7 +310,7 @@ export default function ProfilePage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Teléfono</label>
+            <label className="block text-sm font-medium text-gray-700">Telefono</label>
             <input
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               value={form.phone}
@@ -205,7 +332,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Razón social (si aplica)</label>
+          <label className="block text-sm font-medium text-gray-700">Razon social (si aplica)</label>
           <input
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             value={form.businessName}
@@ -216,13 +343,13 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Dirección</label>
+          <label className="block text-sm font-medium text-gray-700">Direccion</label>
           <textarea
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             value={form.address}
             onChange={handleChange('address')}
             rows={3}
-            placeholder="Calle, número, comuna, ciudad"
+            placeholder="Calle, numero, comuna, ciudad"
             maxLength={200}
           />
           <p className="mt-1 text-xs text-gray-500">Estos datos son opcionales, pero nos ayudan a preparar propuestas a medida.</p>
@@ -258,14 +385,14 @@ export default function ProfilePage() {
         <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
           <h1 className="text-3xl font-semibold text-gray-900">Mi perfil</h1>
           <p className="mt-2 text-sm text-gray-500">
-            Completa tu información para que podamos contactarte y preparar propuestas personalizadas. Ningún campo es obligatorio.
+            Completa tu informacion para que podamos contactarte y preparar propuestas personalizadas. Ningun campo es obligatorio.
           </p>
 
           <div className="mt-8">{renderContent()}</div>
         </div>
       </section>
 
-      <Suspense fallback={<div className="p-4 text-center text-gray-500">Cargando pie de página...</div>}>
+      <Suspense fallback={<div className="p-4 text-center text-gray-500">Cargando pie de pagina...</div>}>
         <Footer />
       </Suspense>
     </main>

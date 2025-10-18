@@ -10,6 +10,13 @@ const OrderSchema = new mongoose.Schema({
     quantity: Number,
     unitPrice: Number,
   }],
+  contact: {
+    personType: { type: String, enum: ['natural', 'empresa'], default: 'natural' },
+    phone: { type: String, default: '' },
+    address: { type: String, default: '' },
+    rut: { type: String, default: '' },
+    businessName: { type: String, default: '' },
+  },
   status: { type: String, default: 'PENDIENTE' },
 }, { timestamps: true });
 
