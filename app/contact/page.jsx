@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 
 export default function ContactPage() {
-  const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [form, setForm] = useState({ name: '', email: '', message: '', phone: '' });
   const [status, setStatus] = useState(null);
 
   const submit = async (e) => {
@@ -40,6 +40,16 @@ export default function ContactPage() {
             <label className="block text-sm font-medium">Nombre</label>
             <input className="w-full mt-1 p-3 border rounded-lg" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required/>
           </div>
+          <div>
+            <label className="block text-sm font-medium">Teléfono (opcional)</label>
+            <input 
+            type="tel"
+className="w-full mt-1 p-3 border rounded-lg"
+value={form.phone}
+onChange={e => setForm({ ...form, phone: e.target.value })}
+placeholder="+56 9 1234 5678"
+/>
+</div>
           <div>
             <label className="block text-sm font-medium">Email (se notificara a administracion)</label>
             <input type="email" className="w-full mt-1 p-3 border rounded-lg" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} required/>
