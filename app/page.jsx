@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Briefcase, Mail, Zap, ShieldCheck, Star } from 'lucide-react';
+import WorksShowcase from '@/components/WorksShowcase';
 
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 
@@ -139,31 +140,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* === TRABAJOS REALIZADOS === */}
-      <section className="container py-12">
-        <h3 className="text-3xl font-bold mb-6">Trabajos realizados</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            { title: 'Proyecto A', img: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?q=80&w=800&auto=format&fit=crop' },
-            { title: 'Proyecto B', img: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=800&auto=format&fit=crop' },
-            { title: 'Proyecto C', img: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?q=80&w=800&auto=format&fit=crop' },
-          ].map((w, idx) => (
-            <a
-              key={idx}
-              href="https://www.google.com"
-              target="_blank"
-              rel="noreferrer"
-              className="block card overflow-hidden hover:shadow-md"
-            >
-              <img src={w.img} alt={w.title} className="w-full h-44 object-cover" />
-              <div className="p-4">
-                <div className="font-semibold">{w.title}</div>
-                <div className="text-sm text-gray-600">Ver sitio</div>
-              </div>
-            </a>
-          ))}
-        </div>
-      </section>
+      <WorksShowcase />
 
       <Suspense fallback={<div className="p-4 text-center text-gray-500">Preparando chat...</div>}>
         <ChatWidget />
