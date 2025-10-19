@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 import { getMailerConfig, getTransporter } from '@/lib/mailer';
 
-// Lee JSON o FormData sin romper si cambias el form
+// Lee JSON o FormData (ambos soportados)
 async function readBody(req) {
   const ctype = req.headers.get('content-type') || '';
   if (ctype.includes('application/json')) {
@@ -28,10 +28,9 @@ async function readBody(req) {
 // GET → healthcheck (para abrir en el navegador sin 405)
 export async function GET() {
   try {
-    const mailConfig = getMailerConfig();    // valida envs
+    const mailConfig = getMailerConfig();    // valida envs y defaults
     const transporter = getTransporter();
     await transporter.verify();              // valida credenciales/conexión
-
     return Response.json({
       ok: true,
       transport: 'ready',
@@ -63,16 +62,14 @@ export async function POST(req) {
       );
     }
 
-    const mailConfig = getMailerConfig();     // lee env + defaults (from / to)
+    const mailConfig = getMailerConfig();   // lee env + defaults (from/to)
     const transporter = getTransporter();
-
-    // Verifica credenciales antes de enviar (útil en Vercel)
-    await transporter.verify();
+    await transporter.verify();             // confirma login correcto
 
     const info = await transporter.sendMail({
-      from: mailConfig.defaults.from,        // ⚠️ Debe ser remitente verificado en Brevo
+      from: mailConfig.defaults.from,       // 👈 Debe ser remitente verificado (tu Gmail)
       to:   mailConfig.defaults.to,
-      replyTo: email,                         // para responderle directo al cliente
+      replyTo: email,                       // para responder directo al cliente
       subject,
       text:
 `De: ${name} <${email}>
@@ -90,7 +87,6 @@ ${message}
 
     return Response.json({ ok: true, messageId: info?.messageId || null }, { status: 200 });
   } catch (err) {
-    // Devuelve detalle útil para ver en Network/Logs de Vercel
     return Response.json(
       { ok: false, message: err?.message || 'Mail error' },
       { status: 500 }
