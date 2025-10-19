@@ -33,7 +33,7 @@ export default function ContactPage() {
       </Suspense>
 
       <section className="container py-12">
-        <h2 className="text-4xl font-bold text-center mb-8">Contáctanos Directamente</h2>
+        <h2 className="text-4xl font-bold text-center mb-8">Contactanos Directamente</h2>
 
         <form onSubmit={submit} className="max-w-2xl mx-auto card p-8 space-y-4">
           <div>
@@ -41,7 +41,7 @@ export default function ContactPage() {
             <input className="w-full mt-1 p-3 border rounded-lg" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required/>
           </div>
           <div>
-            <label className="block text-sm font-medium">Email (se notificará a administración)</label>
+            <label className="block text-sm font-medium">Email (se notificara a administracion)</label>
             <input type="email" className="w-full mt-1 p-3 border rounded-lg" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} required/>
           </div>
           <div>
@@ -51,7 +51,7 @@ export default function ContactPage() {
           <button className="btn-primary w-full" disabled={status==='loading'}>
             {status==='loading' ? 'Enviando...' : 'Enviar Solicitud'}
           </button>
-          {status==='success' && <p className="text-green-700 bg-green-50 border border-green-200 p-2 rounded">¡Mensaje enviado! Te contactaremos pronto.</p>}
+          {status==='success' && <p className="text-green-700 bg-green-50 border border-green-200 p-2 rounded">Mensaje enviado! Te contactaremos pronto.</p>}
           {status==='error' && <p className="text-red-700 bg-red-50 border border-red-200 p-2 rounded">Error al enviar. Intenta nuevamente.</p>}
         </form>
       </section>
@@ -60,7 +60,7 @@ export default function ContactPage() {
         <ChatWidget />
       </Suspense>
 
-      <Suspense fallback={<div className="p-4 text-center text-gray-500">Cargando pie de página...</div>}>
+      <Suspense fallback={<div className="p-4 text-center text-gray-500">Cargando pie de pagina...</div>}>
         <Footer />
       </Suspense>
     </main>
