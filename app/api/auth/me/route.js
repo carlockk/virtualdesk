@@ -2,6 +2,7 @@ import { getSession, clearSessionCookie, signSession, setSessionCookie } from '@
 import { dbConnect } from '@/lib/mongodb';
 import User from '@/models/User';
 import { z } from 'zod';
+import { isUserSuperAdmin } from '@/lib/admin-auth';
 
 function json(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -53,6 +54,7 @@ function serializeUser(userDoc) {
     name: userDoc.name,
     email: userDoc.email,
     role: userDoc.role || 'user',
+    isSuperAdmin: isUserSuperAdmin(userDoc),
     avatarUrl: userDoc.avatarUrl || '',
     personType: userDoc.personType || 'natural',
     phone: userDoc.phone || '',

@@ -1,10 +1,6 @@
 import { dbConnect } from '@/lib/mongodb';
 import Work from '@/models/Work';
-import {
-  ensureSuperAdmin,
-  serializeWork,
-  uploadWorkImage,
-} from '@/lib/works-admin';
+import { ensureAdmin, serializeWork, uploadWorkImage } from '@/lib/works-admin';
 
 export const runtime = 'nodejs';
 
@@ -33,7 +29,7 @@ export async function GET() {
 
 export async function POST(req) {
   try {
-    await ensureSuperAdmin();
+    await ensureAdmin();
     await dbConnect();
 
     const form = await req.formData();
@@ -44,10 +40,10 @@ export async function POST(req) {
     const imageFile = form.get('image');
 
     if (!title) {
-      throw Object.assign(new Error('El título es obligatorio.'), { status: 400 });
+      throw Object.assign(new Error('El titulo es obligatorio.'), { status: 400 });
     }
     if (!description) {
-      throw Object.assign(new Error('La descripción es obligatoria.'), { status: 400 });
+      throw Object.assign(new Error('La descripcion es obligatoria.'), { status: 400 });
     }
 
     const { imageUrl } = await uploadWorkImage(imageFile);

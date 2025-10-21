@@ -122,7 +122,7 @@ export default function AuthPanel({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [mounted, handleKeyDown]);
 
-  // Enfocar botón cerrar AL FINAL de la animación de contenido (evita jank al entrar)
+  // Enfocar boton cerrar AL FINAL de la animacion de contenido (evita jank al entrar)
   useEffect(() => {
     if (mounted && visible && !hideHeader) {
       const t = setTimeout(() => closeBtnRef.current?.focus?.(), CONTENT_DURATION + 40);
@@ -130,16 +130,19 @@ export default function AuthPanel({
     }
   }, [mounted, visible, hideHeader]);
 
-  const scheduleClose = useCallback(() => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-    }
-    closeTimerRef.current = setTimeout(() => {
-      onClose?.();
-      window.location.href = "/";
-      closeTimerRef.current = null;
-    }, 1200);
-  }, [onClose]);
+  const scheduleClose = useCallback(
+    (targetPath = "/") => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+      closeTimerRef.current = setTimeout(() => {
+        onClose?.();
+        window.location.href = targetPath;
+        closeTimerRef.current = null;
+      }, 1200);
+    },
+    [onClose],
+  );
 
   const handleLoginChange = (field) => (event) => {
     const value = event.target.value;
@@ -168,7 +171,7 @@ export default function AuthPanel({
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data?.ok) {
-        const message = data?.message || "No se pudo iniciar sesión. Revisa tus datos.";
+        const message = data?.message || "No se pudo iniciar sesion. Revisa tus datos.";
         setLoginFeedback(() => ({ loading: false, error: message, success: "" }));
         return;
       }
@@ -177,14 +180,20 @@ export default function AuthPanel({
       setLoginFeedback(() => ({
         loading: false,
         error: "",
-        success: name ? `Ingreso exitoso. ¡Bienvenido, ${name}!` : "Ingreso exitoso.",
+        success: name ? `Ingreso exitoso. Bienvenido, ${name}!` : "Ingreso exitoso.",
       }));
       setLoginForm(() => ({ ...LOGIN_INITIAL }));
-      scheduleClose();
+      const targetPath = (data?.user?.role || "").toLowerCase() === "admin" ? "/admin" : "/";
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("virtualdesk:user-updated", { detail: { user: data.user } }),
+        );
+      }
+      scheduleClose(targetPath);
     } catch (err) {
       setLoginFeedback(() => ({
         loading: false,
-        error: "Ocurrió un problema. Intenta nuevamente.",
+        error: "Ocurrio un problema. Intenta nuevamente.",
         success: "",
       }));
     }
@@ -218,7 +227,7 @@ export default function AuthPanel({
         loading: false,
         error: "",
         success: name
-          ? `Cuenta creada con éxito. ¡Bienvenido, ${name}!`
+          ? `Cuenta creada con éxito. Bienvenido, ${name}!`
           : "Cuenta creada con éxito.",
       }));
       setRegisterForm(() => ({ ...REGISTER_INITIAL }));
@@ -226,7 +235,7 @@ export default function AuthPanel({
     } catch (err) {
       setRegisterFeedback(() => ({
         loading: false,
-        error: "Ocurrió un problema. Intenta nuevamente.",
+        error: "Ocurrio un problema. Intenta nuevamente.",
         success: "",
       }));
     }
@@ -235,13 +244,13 @@ export default function AuthPanel({
   if (!mounted) return null;
 
   // Títulos por modo (si no se provee title)
-  const computedTitle = title ?? (view === "register" ? "Crear cuenta" : "Inicia sesión");
+  const computedTitle = title ?? (view === "register" ? "Crear cuenta" : "Inicia sesion");
 
   // --- Contenido por defecto (login/register) ---
   const DefaultLogin = (
     <div className="space-y-5">
       <p className="text-sm text-gray-600">
-        Bienvenido. Inicia sesión para continuar.
+        Bienvenido. Inicia sesion para continuar.
       </p>
 
       <form className="space-y-3" onSubmit={handleLoginSubmit}>
@@ -281,7 +290,7 @@ export default function AuthPanel({
             <input type="checkbox" className="rounded border-gray-300" disabled={loginFeedback.loading} /> Recuérdame
           </label>
           <button type="button" className="text-sm text-indigo-600 hover:underline" disabled={loginFeedback.loading}>
-            ¿Olvidaste tu contraseña?
+            Olvidaste tu contraseña?
           </button>
         </div>
 
@@ -309,7 +318,7 @@ export default function AuthPanel({
       </form>
 
       <div className="pt-2 text-center text-sm text-gray-600">
-        ¿No tienes cuenta?{" "}
+        No tienes cuenta?{" "}
         <button
           type="button"
           onClick={() => setView("register")}
@@ -399,14 +408,14 @@ export default function AuthPanel({
       </form>
 
       <div className="pt-2 text-center text-sm text-gray-600">
-        ¿Ya tienes cuenta?{" "}
+        Ya tienes cuenta?{" "}
         <button
           type="button"
           onClick={() => setView("login")}
           className="font-medium text-indigo-600 hover:underline"
           disabled={registerFeedback.loading}
         >
-          Inicia sesión
+          Inicia sesion
         </button>
       </div>
     </div>
@@ -483,3 +492,7 @@ export default function AuthPanel({
     </div>
   );
 }
+
+
+
+

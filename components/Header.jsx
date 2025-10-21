@@ -95,11 +95,11 @@ export default function Header() {
       )}
       {isAdmin && (
         <Link
-          href="/admin/messages"
+          href="/admin"
           className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700"
           onClick={closeMobile}
         >
-          Centro de mensajes
+          Panel admin
         </Link>
       )}
       {user ? (
@@ -241,11 +241,11 @@ export default function Header() {
               {isAdmin && (
                 <li>
                   <Link
-                    href="/admin/messages"
+                    href="/admin"
                     className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700"
                     onClick={closeMobile}
                   >
-                    Centro de mensajes
+                    Panel admin
                   </Link>
                 </li>
               )}

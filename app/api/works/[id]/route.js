@@ -2,7 +2,7 @@ import { dbConnect } from '@/lib/mongodb';
 import Work from '@/models/Work';
 import {
   deleteWorkImage,
-  ensureSuperAdmin,
+  ensureAdmin,
   extractWorkPublicId,
   serializeWork,
   uploadWorkImage,
@@ -20,7 +20,7 @@ function json(body, init = {}) {
 
 export async function PATCH(req, { params }) {
   try {
-    await ensureSuperAdmin();
+    await ensureAdmin();
     await dbConnect();
 
     const { id } = params || {};
@@ -39,7 +39,7 @@ export async function PATCH(req, { params }) {
     if (form.has('title')) {
       const title = String(form.get('title') || '').trim();
       if (!title) {
-        throw Object.assign(new Error('El título no puede estar vacío.'), { status: 400 });
+        throw Object.assign(new Error('El titulo no puede estar vacio.'), { status: 400 });
       }
       updates.title = title;
     }
@@ -47,7 +47,7 @@ export async function PATCH(req, { params }) {
     if (form.has('description')) {
       const description = String(form.get('description') || '').trim();
       if (!description) {
-        throw Object.assign(new Error('La descripción no puede estar vacía.'), { status: 400 });
+        throw Object.assign(new Error('La descripcion no puede estar vacia.'), { status: 400 });
       }
       updates.description = description;
     }
@@ -84,7 +84,7 @@ export async function PATCH(req, { params }) {
 
 export async function DELETE(req, { params }) {
   try {
-    await ensureSuperAdmin();
+    await ensureAdmin();
     await dbConnect();
 
     const { id } = params || {};

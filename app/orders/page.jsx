@@ -118,7 +118,7 @@ export default function OrdersPage() {
                   : g.service
                   ? [{
                       serviceId: g.service.id,
-                      serviceName: g.service.name,
+                      serviceName: g.service.title || g.service.name,
                       quantity: 1,
                       unitPrice: Number(g.service.price) || 0,
                     }]
@@ -127,7 +127,9 @@ export default function OrdersPage() {
                 return (
                   <li key={i} className="border rounded-xl p-4">
                     <div className="flex justify-between mb-1">
-                      <span className="font-semibold">{g.service?.name || items[0]?.serviceName || 'Servicio'}</span>
+                      <span className="font-semibold">
+                        {g.service?.title || g.service?.name || items[0]?.serviceName || 'Servicio'}
+                      </span>
                       <span className="text-sm text-gray-500">{formatDateTime(g?.when)}</span>
                     </div>
                     <div className="text-sm text-gray-700">{g.name} - {g.email}</div>
