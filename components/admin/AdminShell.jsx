@@ -55,8 +55,12 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
   const sidebar = (
     <aside className="flex h-full w-72 flex-col border-r border-slate-200 bg-white">
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-6">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">
-          VD
+        <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <img
+            src="/virt.jpg"
+            alt="VirtualDesk logo"
+            className="h-full w-full object-cover"
+          />
         </div>
         <div>
           <p className="text-sm font-semibold text-slate-900">VirtualDesk</p>
