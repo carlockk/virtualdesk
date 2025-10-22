@@ -210,7 +210,7 @@ export default function OrdersPage() {
                           type="button"
                           onClick={() =>
                             handlePrint({
-                              _id: o._id,
+                              id: o._id,
                               createdAt: o.createdAt,
                               clientName: o.clientName,
                               clientEmail: o.clientEmail,
@@ -296,7 +296,7 @@ export default function OrdersPage() {
                           type="button"
                           onClick={() =>
                             handlePrint({
-                              _id: g.order?._id || g.order?.id || g.when,
+                              id: items[0]?.serviceId || g.when,
                               createdAt: g.when,
                               clientName: g.name,
                               clientEmail: g.email,
@@ -324,7 +324,5 @@ export default function OrdersPage() {
     </main>
   );
 }
-
-
 
 

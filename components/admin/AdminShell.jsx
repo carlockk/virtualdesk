@@ -3,6 +3,7 @@
 import { AdminProvider } from '@/components/admin/AdminContext';
 import {
   Briefcase,
+  ClipboardList,
   FolderGit2,
   Globe,
   LayoutDashboard,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/admin', label: 'Resumen', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Usuarios', icon: Users },
   { href: '/admin/services', label: 'Servicios', icon: Briefcase },
+  { href: '/admin/orders', label: 'Pedidos', icon: ClipboardList },
   { href: '/admin/brand', label: 'Marca', icon: Palette },
   { href: '/admin/works', label: 'Trabajos', icon: FolderGit2 },
   { href: '/admin/messages', label: 'Mensajes', icon: MessageSquare },

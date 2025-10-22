@@ -235,7 +235,7 @@ export default function CheckoutPage() {
             <div className="mb-6 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
               <div className="font-semibold text-indigo-700">{serviceInfo.title}</div>
               <div className="text-sm text-gray-700">{serviceInfo.description}</div>
-              {Number.isFinite(Number(serviceInfo.price)) && (
+              {Number.isFinite(Number(serviceInfo.price)) && Number(serviceInfo.price) > 0 && (
                 <div className="mt-1 font-bold text-gray-900">
                   ${formatCurrencyCLP(serviceInfo.price)}
                 </div>

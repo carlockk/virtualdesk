@@ -1,7 +1,7 @@
 'use client';
 
 import { useAdmin } from '@/components/admin/AdminContext';
-import { Loader2, Send, UserCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, Send, UserCircle2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 function formatDate(value) {
@@ -21,9 +21,9 @@ export default function AdminMessagesPage() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [error, setError] = useState('');
 
-  const loadConversations = async () => {
+  const loadConversations = async (showSpinner = true) => {
     try {
-      setLoadingList(true);
+      if (showSpinner) setLoadingList(true);
       const res = await fetch('/api/chat', { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok) {
@@ -31,13 +31,19 @@ export default function AdminMessagesPage() {
       }
       const items = Array.isArray(data.conversations) ? data.conversations : [];
       setConversations(items);
-      if (!activeChannel && items.length > 0) {
-        setActiveChannel(items[0].channel);
-      }
+      setActiveChannel((prev) => {
+        if (!prev && items.length > 0) {
+          return items[0].channel;
+        }
+        if (prev && !items.some((item) => item.channel === prev)) {
+          return items.length > 0 ? items[0].channel : null;
+        }
+        return prev;
+      });
     } catch (err) {
       setError(err.message || 'Error al cargar conversaciones.');
     } finally {
-      setLoadingList(false);
+      if (showSpinner) setLoadingList(false);
     }
   };
 
@@ -63,8 +69,8 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     let timer;
-    loadConversations();
-    timer = setInterval(loadConversations, 8000);
+    loadConversations(true);
+    timer = setInterval(() => loadConversations(false), 15000);
     return () => {
       if (timer) clearInterval(timer);
     };
@@ -110,7 +116,17 @@ export default function AdminMessagesPage() {
       <aside className="w-full rounded-2xl border border-slate-200 bg-white shadow-sm lg:w-72">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-800">Conversaciones</h2>
-          <span className="text-xs text-slate-500">{conversations.length}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">{conversations.length}</span>
+            <button
+              type="button"
+              onClick={() => loadConversations(true)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+              aria-label="Actualizar conversaciones"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
         </div>
         <div className="max-h-[70vh] overflow-y-auto">
           {loadingList ? (
