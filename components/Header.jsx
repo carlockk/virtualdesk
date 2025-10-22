@@ -12,12 +12,33 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const { show: openAuthPanel } = useAuthPanel();
   const isAdmin = user?.role === 'admin';
+  const [brand, setBrand] = useState({ name: 'VirtualDesk', logoUrl: '/virt.jpg' });
 
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => setUser(data.user || null))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/brand', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const fetched = data?.brand;
+        if (fetched) {
+          setBrand({
+            name: fetched.name || 'VirtualDesk',
+            logoUrl: fetched.logoUrl || '/virt.jpg',
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -177,15 +198,15 @@ export default function Header() {
         >
           <div className="relative w-20 h-20 md:w-28 md:h-28 -mb-6 md:-mb-8 translate-y-2 md:translate-y-3 rounded-full border-4 border-white shadow-2xl overflow-hidden ring-4 ring-indigo-50 z-[70]">
             <Image
-              src="/virt.jpg"
-              alt="VirtualDesk"
+              src={brand.logoUrl || '/virt.jpg'}
+              alt={brand.name || 'Marca'}
               fill
               sizes="112px"
               className="object-cover"
               priority
             />
           </div>
-          <span className="sr-only">VirtualDesk</span>
+          <span className="sr-only">{brand.name || 'VirtualDesk'}</span>
         </Link>
 
         <nav className="hidden md:flex gap-2 items-center">{navLinks}</nav>
@@ -293,3 +314,6 @@ export default function Header() {
     </header>
   );
 }
+
+
+

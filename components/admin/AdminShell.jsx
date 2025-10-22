@@ -10,25 +10,64 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Palette,
   Users,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Resumen', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Usuarios', icon: Users },
   { href: '/admin/services', label: 'Servicios', icon: Briefcase },
+  { href: '/admin/brand', label: 'Marca', icon: Palette },
   { href: '/admin/works', label: 'Trabajos', icon: FolderGit2 },
   { href: '/admin/messages', label: 'Mensajes', icon: MessageSquare },
 ];
+
+const DEFAULT_BRAND = {
+  name: 'VirtualDesk',
+  logoUrl: '/virt.jpg',
+};
 
 export default function AdminShell({ user, isSuperAdmin, children }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [brand, setBrand] = useState(DEFAULT_BRAND);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/brand', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const fetched = data?.brand;
+        if (fetched) {
+          setBrand({
+            name: fetched.name || DEFAULT_BRAND.name,
+            logoUrl: fetched.logoUrl || DEFAULT_BRAND.logoUrl,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const brandInitials = useMemo(() => {
+    const source = brand.name || DEFAULT_BRAND.name;
+    return source
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase() || 'VD';
+  }, [brand.name]);
 
   const navLinks = useMemo(() => {
     return NAV_ITEMS.map((item) => {
@@ -55,15 +94,15 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
   const sidebar = (
     <aside className="flex h-full w-72 flex-col border-r border-slate-200 bg-white">
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-6">
-        <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <img
-            src="/virt.jpg"
-            alt="VirtualDesk logo"
-            className="h-full w-full object-cover"
-          />
+        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.name || 'Marca'} className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-sm font-semibold text-indigo-600">{brandInitials}</span>
+          )}
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-900">VirtualDesk</p>
+          <p className="text-sm font-semibold text-slate-900">{brand.name}</p>
           <p className="text-xs text-slate-500">Panel administrativo</p>
         </div>
       </div>
@@ -138,8 +177,8 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
                     {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
                   </button>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">Panel administrativo</p>
-                    <p className="text-xs text-slate-500">{user?.name}</p>
+                    <p className="text-sm font-semibold text-slate-800">{brand.name}</p>
+                    <p className="text-xs text-slate-500">Panel administrativo</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
