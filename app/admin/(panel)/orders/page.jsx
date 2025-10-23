@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Loader2, Printer, X } from 'lucide-react';
+import { Eye, Loader2, Printer, Trash2, X } from 'lucide-react';
 
 const formatDateTime = (value) => {
   if (!value) return '';
@@ -35,6 +35,7 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
+  const [deletingId, setDeletingId] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -143,6 +144,28 @@ export default function AdminOrdersPage() {
     [orders],
   );
 
+  const handleDelete = async (order) => {
+    if (!order?._id) return;
+    const confirmed = window.confirm(`Seguro que deseas eliminar el pedido ${order._id}?`);
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(order._id);
+      setError('');
+      const res = await fetch(`/api/orders/${order._id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.message || 'No se pudo eliminar el pedido.');
+      }
+      setOrders((prev) => prev.filter((item) => item._id !== order._id));
+      setSelected((prev) => (prev?._id === order._id ? null : prev));
+    } catch (err) {
+      setError(err.message || 'No se pudo eliminar el pedido.');
+    } finally {
+      setDeletingId('');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -210,6 +233,22 @@ export default function AdminOrdersPage() {
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                       >
                         <Printer size={14} /> Imprimir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(order)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                        disabled={deletingId === order._id}
+                      >
+                        {deletingId === order._id ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" /> Eliminando...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={14} /> Eliminar
+                          </>
+                        )}
                       </button>
                     </div>
                   </td>

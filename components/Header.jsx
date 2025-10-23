@@ -6,13 +6,15 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuthPanel } from './AuthPanelProvider';
 import { SUPER_ADMIN_EMAIL } from '@/lib/constants';
 
+const DEFAULT_BRAND = { name: 'VirtualDesk', logoUrl: '/virt.jpg' };
+
 export default function Header() {
   const [user, setUser] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { show: openAuthPanel } = useAuthPanel();
   const isAdmin = user?.role === 'admin';
-  const [brand, setBrand] = useState({ name: 'VirtualDesk', logoUrl: '/virt.jpg' });
+  const [brand, setBrand] = useState(DEFAULT_BRAND);
 
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
@@ -24,18 +26,22 @@ export default function Header() {
   useEffect(() => {
     let active = true;
     fetch('/api/brand', { cache: 'no-store' })
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Brand fetch failed'))))
       .then((data) => {
         if (!active) return;
         const fetched = data?.brand;
         if (fetched) {
           setBrand({
-            name: fetched.name || 'VirtualDesk',
-            logoUrl: fetched.logoUrl || '/virt.jpg',
+            name: fetched.name || DEFAULT_BRAND.name,
+            logoUrl: fetched.logoUrl || DEFAULT_BRAND.logoUrl,
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) {
+          setBrand(DEFAULT_BRAND);
+        }
+      });
     return () => {
       active = false;
     };
@@ -198,7 +204,7 @@ export default function Header() {
         >
           <div className="relative w-20 h-20 md:w-28 md:h-28 -mb-6 md:-mb-8 translate-y-2 md:translate-y-3 rounded-full border-4 border-white shadow-2xl overflow-hidden ring-4 ring-indigo-50 z-[70]">
             <Image
-              src={brand.logoUrl || '/virt.jpg'}
+              src={brand.logoUrl || DEFAULT_BRAND.logoUrl}
               alt={brand.name || 'Marca'}
               fill
               sizes="112px"
@@ -206,7 +212,7 @@ export default function Header() {
               priority
             />
           </div>
-          <span className="sr-only">{brand.name || 'VirtualDesk'}</span>
+          <span className="sr-only">{brand.name || DEFAULT_BRAND.name}</span>
         </Link>
 
         <nav className="hidden md:flex gap-2 items-center">{navLinks}</nav>

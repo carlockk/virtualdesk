@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 const LOGIN_INITIAL = { email: "", password: "" };
-const REGISTER_INITIAL = { name: "", email: "", password: "" };
+const REGISTER_INITIAL = { name: "", email: "", password: "", confirmPassword: "" };
+const RESET_INITIAL = { email: "" };
 const FEEDBACK_INITIAL = { loading: false, error: "", success: "" };
 
 /** concat clases simple */
@@ -18,11 +20,11 @@ const EASING = "cubic-bezier(0.22,1,0.36,1)"; // easeOutExpo-ish
  * Props:
  * - open: boolean
  * - onClose: () => void
- * - mode?: 'login' | 'register'    // ← ahora sí se respeta
+ * - mode?: 'login' | 'register'    // ← ahora si se respeta
  * - hideHeader?: boolean
  * - overlayBlurMd?: boolean        // blur solo en md+ (off por defecto)
  * - closeOnOverlay?: boolean       // true por defecto
- * - title?: string                 // si no se define, se usa según el modo
+ * - title?: string                 // si no se define, se usa segun el modo
  * - children?: ReactNode           // si lo pasas, reemplaza el contenido por defecto
  */
 export default function AuthPanel({
@@ -40,26 +42,44 @@ export default function AuthPanel({
   const [view, setView] = useState(mode); // ← estado de vista interna (login/register)
   const closeBtnRef = useRef(null);
   const closeTimerRef = useRef(null);
+  const resetTimerRef = useRef(null);
   const [loginForm, setLoginForm] = useState(() => ({ ...LOGIN_INITIAL }));
   const [registerForm, setRegisterForm] = useState(() => ({ ...REGISTER_INITIAL }));
+  const [resetForm, setResetForm] = useState(() => ({ ...RESET_INITIAL }));
   const [loginFeedback, setLoginFeedback] = useState(() => ({ ...FEEDBACK_INITIAL }));
   const [registerFeedback, setRegisterFeedback] = useState(() => ({ ...FEEDBACK_INITIAL }));
+  const [resetFeedback, setResetFeedback] = useState(() => ({ ...FEEDBACK_INITIAL }));
+  const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
+  const [registerPasswordVisible, setRegisterPasswordVisible] = useState(false);
+  const [registerConfirmVisible, setRegisterConfirmVisible] = useState(false);
 
   const resetForms = useCallback(() => {
     setLoginForm(() => ({ ...LOGIN_INITIAL }));
     setRegisterForm(() => ({ ...REGISTER_INITIAL }));
+    setResetForm(() => ({ ...RESET_INITIAL }));
     setLoginFeedback(() => ({ ...FEEDBACK_INITIAL }));
     setRegisterFeedback(() => ({ ...FEEDBACK_INITIAL }));
+    setResetFeedback(() => ({ ...FEEDBACK_INITIAL }));
+    setLoginPasswordVisible(false);
+    setRegisterPasswordVisible(false);
+    setRegisterConfirmVisible(false);
   }, []);
 
-  useEffect(() => () => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+        resetTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
-  // Mantén la vista sincronizada con la prop "mode" cuando cambie desde afuera
+  // Manten la vista sincronizada con la prop "mode" cuando cambie desde afuera
   useEffect(() => {
     setView(mode);
   }, [mode]);
@@ -77,6 +97,13 @@ export default function AuthPanel({
   useEffect(() => {
     setLoginFeedback(() => ({ ...FEEDBACK_INITIAL }));
     setRegisterFeedback(() => ({ ...FEEDBACK_INITIAL }));
+    setResetFeedback(() => ({ ...FEEDBACK_INITIAL }));
+    setLoginPasswordVisible(false);
+    setRegisterPasswordVisible(false);
+    setRegisterConfirmVisible(false);
+    if (view !== 'reset') {
+      setResetForm(() => ({ ...RESET_INITIAL }));
+    }
   }, [view]);
 
   // ENTRADA: doble rAF para asegurar el primer paint antes de animar
@@ -99,7 +126,7 @@ export default function AuthPanel({
     }
   }, [open]);
 
-  // Bloquear scroll de body cuando está abierto (se activa tras montar)
+  // Bloquear scroll de body cuando esta abierto (se activa tras montar)
   useEffect(() => {
     if (!mounted) return;
     const prev = document.body.style.overflow;
@@ -154,6 +181,11 @@ export default function AuthPanel({
     setRegisterForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleResetChange = (event) => {
+    const value = event.target.value;
+    setResetForm(() => ({ email: value }));
+  };
+
   const handleLoginSubmit = async (event) => {
     event.preventDefault();
     if (loginFeedback.loading) return;
@@ -202,6 +234,28 @@ export default function AuthPanel({
   const handleRegisterSubmit = async (event) => {
     event.preventDefault();
     if (registerFeedback.loading) return;
+
+    const password = registerForm.password.trim();
+    const confirm = registerForm.confirmPassword.trim();
+
+    if (password.length < 6) {
+      setRegisterFeedback(() => ({
+        loading: false,
+        error: "La contrasena debe tener al menos 6 caracteres.",
+        success: "",
+      }));
+      return;
+    }
+
+    if (password !== confirm) {
+      setRegisterFeedback(() => ({
+        loading: false,
+        error: "Las contrasenas no coinciden.",
+        success: "",
+      }));
+      return;
+    }
+
     setRegisterFeedback(() => ({ loading: true, error: "", success: "" }));
 
     try {
@@ -211,7 +265,7 @@ export default function AuthPanel({
         body: JSON.stringify({
           name: registerForm.name.trim(),
           email: registerForm.email.trim(),
-          password: registerForm.password,
+          password,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -227,8 +281,8 @@ export default function AuthPanel({
         loading: false,
         error: "",
         success: name
-          ? `Cuenta creada con éxito. Bienvenido, ${name}!`
-          : "Cuenta creada con éxito.",
+          ? `Cuenta creada con exito. Bienvenido, ${name}!`
+          : "Cuenta creada con exito.",
       }));
       setRegisterForm(() => ({ ...REGISTER_INITIAL }));
       scheduleClose();
@@ -241,10 +295,71 @@ export default function AuthPanel({
     }
   };
 
+  const handleResetSubmit = async (event) => {
+    event.preventDefault();
+    if (resetFeedback.loading) return;
+
+    const email = resetForm.email.trim();
+    if (!email) {
+      setResetFeedback(() => ({
+        loading: false,
+        error: "Ingresa un correo válido.",
+        success: "",
+      }));
+      return;
+    }
+
+    setResetFeedback(() => ({ loading: true, error: "", success: "" }));
+
+    try {
+      const res = await fetch("/api/auth/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        const message =
+          data?.message || "No pudimos enviar el correo. Intenta nuevamente.";
+        setResetFeedback(() => ({
+          loading: false,
+          error: message,
+          success: "",
+        }));
+        return;
+      }
+
+      setResetFeedback(() => ({
+        loading: false,
+        error: "",
+        success:
+          data?.message ||
+          "Listo, revisa tu correo. Enviamos una contrasena temporal.",
+      }));
+      setResetForm(() => ({ ...RESET_INITIAL }));
+
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+      }
+      resetTimerRef.current = setTimeout(() => {
+        setView("login");
+        setResetFeedback(() => ({ ...FEEDBACK_INITIAL }));
+      }, 3200);
+    } catch (err) {
+      setResetFeedback(() => ({
+        loading: false,
+        error: "Ocurrió un problema. Intenta nuevamente.",
+        success: "",
+      }));
+    }
+  };
+
   if (!mounted) return null;
 
-  // Títulos por modo (si no se provee title)
-  const computedTitle = title ?? (view === "register" ? "Crear cuenta" : "Inicia sesion");
+  // Titulos por modo (si no se provee title)
+  const computedTitle =
+    title ?? (view === "register" ? "Crear cuenta" : view === "reset" ? "Recuperar acceso" : "Inicia sesion");
 
   // --- Contenido por defecto (login/register) ---
   const DefaultLogin = (
@@ -270,27 +385,38 @@ export default function AuthPanel({
           />
         </div>
         <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-800">Contraseña</label>
-          <input
-            type="password"
-            className={cn(
-              "w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500",
-              loginFeedback.loading && "opacity-80 cursor-not-allowed"
-            )}
-            placeholder="********"
-            value={loginForm.password}
-            onChange={handleLoginChange("password")}
-            autoComplete="current-password"
-            disabled={loginFeedback.loading}
-          />
+          <label className="block text-sm font-medium text-gray-800">Contrasena</label>
+          <div className="relative">
+            <input
+              type={loginPasswordVisible ? "text" : "password"}
+              className={cn(
+                "w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500",
+                loginFeedback.loading && "opacity-80 cursor-not-allowed"
+              )}
+              placeholder="********"
+              value={loginForm.password}
+              onChange={handleLoginChange("password")}
+              autoComplete="current-password"
+              disabled={loginFeedback.loading}
+            />
+            <button
+              type="button"
+              onClick={() => setLoginPasswordVisible((prev) => !prev)}
+              className="absolute inset-y-0 right-2 inline-flex items-center justify-center rounded-md px-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              aria-label={loginPasswordVisible ? "Ocultar contrasena" : "Mostrar contrasena"}
+              disabled={loginFeedback.loading}
+            >
+              {loginPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-1">
           <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" className="rounded border-gray-300" disabled={loginFeedback.loading} /> Recuérdame
+            <input type="checkbox" className="rounded border-gray-300" disabled={loginFeedback.loading} /> Recuerdame
           </label>
-          <button type="button" className="text-sm text-indigo-600 hover:underline" disabled={loginFeedback.loading}>
-            Olvidaste tu contraseña?
+          <button type="button" className="text-sm text-indigo-600 hover:underline" disabled={loginFeedback.loading} onClick={() => setView("reset")}> 
+            Olvidaste tu contrasena?
           </button>
         </div>
 
@@ -369,19 +495,60 @@ export default function AuthPanel({
           />
         </div>
         <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-800">Contraseña</label>
-          <input
-            type="password"
-            className={cn(
-              "w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500",
-              registerFeedback.loading && "opacity-80 cursor-not-allowed"
-            )}
-            placeholder="********"
-            value={registerForm.password}
-            onChange={handleRegisterChange("password")}
-            autoComplete="new-password"
-            disabled={registerFeedback.loading}
-          />
+          <label className="block text-sm font-medium text-gray-800">Contrasena</label>
+          <div className="relative">
+            <input
+              type={registerPasswordVisible ? "text" : "password"}
+              className={cn(
+                "w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500",
+                registerFeedback.loading && "opacity-80 cursor-not-allowed"
+              )}
+              placeholder="********"
+              value={registerForm.password}
+              onChange={handleRegisterChange("password")}
+              autoComplete="new-password"
+              disabled={registerFeedback.loading}
+              minLength={6}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setRegisterPasswordVisible((prev) => !prev)}
+              className="absolute inset-y-0 right-2 inline-flex items-center justify-center rounded-md px-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              aria-label={registerPasswordVisible ? "Ocultar contrasena" : "Mostrar contrasena"}
+              disabled={registerFeedback.loading}
+            >
+              {registerPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-800">Repite tu contrasena</label>
+          <div className="relative">
+            <input
+              type={registerConfirmVisible ? "text" : "password"}
+              className={cn(
+                "w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500",
+                registerFeedback.loading && "opacity-80 cursor-not-allowed"
+              )}
+              placeholder="********"
+              value={registerForm.confirmPassword}
+              onChange={handleRegisterChange("confirmPassword")}
+              autoComplete="new-password"
+              disabled={registerFeedback.loading}
+              minLength={6}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setRegisterConfirmVisible((prev) => !prev)}
+              className="absolute inset-y-0 right-2 inline-flex items-center justify-center rounded-md px-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              aria-label={registerConfirmVisible ? "Ocultar confirmación" : "Mostrar confirmación"}
+              disabled={registerFeedback.loading}
+            >
+              {registerConfirmVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
 
         {registerFeedback.error && (
@@ -421,7 +588,53 @@ export default function AuthPanel({
     </div>
   );
 
-  const Content = children ?? (view === "register" ? DefaultRegister : DefaultLogin);
+  const ResetInstructions = (
+    <form className="space-y-4 text-sm text-gray-700" onSubmit={handleResetSubmit}>
+      <p>Ingresa tu correo y te enviaremos una contrasena temporal.</p>
+      <div>
+        <label className="block text-sm font-medium text-gray-800">Correo</label>
+        <input
+          type="email"
+          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="tucorreo@ejemplo.com"
+          value={resetForm.email}
+          onChange={handleResetChange}
+          disabled={resetFeedback.loading}
+          required
+        />
+      </div>
+      {resetFeedback.error && (
+        <p className="text-sm text-red-600" role="alert">{resetFeedback.error}</p>
+      )}
+      {resetFeedback.success && (
+        <p className="text-sm text-green-600" role="status">{resetFeedback.success}</p>
+      )}
+      <div className="flex flex-col gap-2">
+        <button
+          type="submit"
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
+          disabled={resetFeedback.loading}
+        >
+          {resetFeedback.loading ? 'Enviando...' : 'Enviar correo'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('login')}
+          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Volver a iniciar sesion
+        </button>
+      </div>
+    </form>
+  );
+
+  const Content =
+    children ??
+    (view === "register"
+      ? DefaultRegister
+      : view === "reset"
+      ? ResetInstructions
+      : DefaultLogin);
 
   return (
     <div
@@ -442,7 +655,7 @@ export default function AuthPanel({
         style={{ transitionTimingFunction: EASING }}
       />
 
-      {/* Panel (GPU + contain + backface hidden para máxima fluidez) */}
+      {/* Panel (GPU + contain + backface hidden para maxima fluidez) */}
       <aside
         className={cn(
           "relative mr-auto h-full w-full max-w-xl bg-white",
@@ -458,7 +671,7 @@ export default function AuthPanel({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Contenido con fade/translate (más corto que el slide) */}
+        {/* Contenido con fade/translate (mas corto que el slide) */}
         <div
           className={cn(
             "flex h-full flex-col transition-[opacity,transform]",
@@ -492,7 +705,4 @@ export default function AuthPanel({
     </div>
   );
 }
-
-
-
 

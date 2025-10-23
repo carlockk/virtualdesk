@@ -43,7 +43,7 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
   useEffect(() => {
     let active = true;
     fetch('/api/brand', { cache: 'no-store' })
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Brand fetch failed'))))
       .then((data) => {
         if (!active) return;
         const fetched = data?.brand;
@@ -54,7 +54,11 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) {
+          setBrand(DEFAULT_BRAND);
+        }
+      });
     return () => {
       active = false;
     };

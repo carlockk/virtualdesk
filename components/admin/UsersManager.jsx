@@ -1,13 +1,14 @@
 'use client';
 
 import { useAdmin } from '@/components/admin/AdminContext';
-import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const INITIAL_FORM = {
   name: '',
   email: '',
   password: '',
+  confirmPassword: '',
   role: 'user',
   personType: 'natural',
   phone: '',
@@ -49,6 +50,9 @@ export default function UsersManager() {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -87,6 +91,9 @@ export default function UsersManager() {
     setFormMode('create');
     setEditingId(null);
     setFormData({ ...INITIAL_FORM, role: isSuperAdmin ? 'admin' : 'user' });
+    setFormError('');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setDialogOpen(true);
   };
 
@@ -97,6 +104,7 @@ export default function UsersManager() {
       name: user.name || '',
       email: user.email || '',
       password: '',
+      confirmPassword: '',
       role: user.role || 'user',
       personType: user.personType || 'natural',
       phone: user.phone || '',
@@ -105,6 +113,9 @@ export default function UsersManager() {
       businessName: user.businessName || '',
       avatarUrl: user.avatarUrl || '',
     });
+    setFormError('');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setDialogOpen(true);
   };
 
@@ -112,6 +123,9 @@ export default function UsersManager() {
     setDialogOpen(false);
     setFormData(INITIAL_FORM);
     setEditingId(null);
+    setFormError('');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   };
 
   const handleChange = (field) => (event) => {
@@ -120,8 +134,38 @@ export default function UsersManager() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setFormError('');
     setSaving(true);
     try {
+      const passwordTrim = formData.password.trim();
+      const confirmTrim = formData.confirmPassword.trim();
+
+      if (formMode === 'create') {
+        if (passwordTrim.length < 6) {
+          setFormError('La contrasena debe tener al menos 6 caracteres.');
+          setSaving(false);
+          return;
+        }
+        if (passwordTrim !== confirmTrim) {
+          setFormError('Las contrasenas no coinciden.');
+          setSaving(false);
+          return;
+        }
+      } else if (editingId) {
+        if (passwordTrim || confirmTrim) {
+          if (passwordTrim.length < 6) {
+            setFormError('La contrasena debe tener al menos 6 caracteres.');
+            setSaving(false);
+            return;
+          }
+          if (passwordTrim !== confirmTrim) {
+            setFormError('Las contrasenas no coinciden.');
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
       const payload = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -135,7 +179,7 @@ export default function UsersManager() {
       };
 
       if (formMode === 'create') {
-        payload.password = formData.password;
+        payload.password = passwordTrim;
         const res = await fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -146,8 +190,8 @@ export default function UsersManager() {
           throw new Error(data?.message || 'No se pudo crear el usuario.');
         }
       } else if (editingId) {
-        if (formData.password.trim()) {
-          payload.password = formData.password.trim();
+        if (passwordTrim) {
+          payload.password = passwordTrim;
         }
         const res = await fetch(`/api/admin/users/${editingId}`, {
           method: 'PATCH',
@@ -163,7 +207,9 @@ export default function UsersManager() {
       closeDialog();
       await loadUsers();
     } catch (err) {
-      setError(err.message || 'Error al guardar.');
+      const message = err.message || 'Error al guardar.';
+      setError(message);
+      setFormError(message);
     } finally {
       setSaving(false);
     }
@@ -337,14 +383,53 @@ export default function UsersManager() {
               <span className="font-medium text-slate-700">
                 {formMode === 'create' ? 'Contrasena' : 'Contrasena (opcional)'}
               </span>
-              <input
-                type="password"
-                required={formMode === 'create'}
-                value={formData.password}
-                onChange={handleChange('password')}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                minLength={6}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required={formMode === 'create'}
+                  value={formData.password}
+                  onChange={handleChange('password')}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  minLength={6}
+                  autoComplete="new-password"
+                  disabled={saving}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center justify-center rounded-md px-2 text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                  disabled={saving}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-slate-700">
+                {formMode === 'create' ? 'Repite contrasena' : 'Repite contrasena (si la cambias)'}
+              </span>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={handleChange('confirmPassword')}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  minLength={6}
+                  autoComplete="new-password"
+                  required={formMode === 'create' || Boolean(formData.password.trim())}
+                  disabled={saving}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center justify-center rounded-md px-2 text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  aria-label={showConfirmPassword ? 'Ocultar confirmacion' : 'Mostrar confirmacion'}
+                  disabled={saving}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-700">Rol</span>
@@ -417,6 +502,11 @@ export default function UsersManager() {
               />
             </label>
           </div>
+          {formError && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button
               type="button"

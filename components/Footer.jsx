@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
+import { Facebook, Instagram, Chrome } from 'lucide-react';
 
 const NAV_LINKS = [
   { href: '/', label: 'Inicio' },
@@ -18,6 +19,12 @@ const LEGAL_LINKS = [
   { href: '/contact', label: 'Garantias y soporte' },
 ];
 
+const SOCIAL_LINKS = [
+  { href: 'https://www.instagram.com/virtualdeskk', label: 'Instagram', external: true, icon: Instagram },
+  { href: '#', label: 'Facebook', external: false, icon: Facebook },
+  { href: '#', label: 'Google', external: false, icon: Chrome },
+];
+
 const DEFAULT_BRAND = {
   name: 'VirtualDesk',
   logoUrl: '/virt.jpg',
@@ -29,7 +36,7 @@ export default function Footer() {
   useEffect(() => {
     let active = true;
     fetch('/api/brand', { cache: 'no-store' })
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Brand fetch failed'))))
       .then((data) => {
         if (!active) return;
         const fetched = data?.brand;
@@ -40,7 +47,11 @@ export default function Footer() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) {
+          setBrand(DEFAULT_BRAND);
+        }
+      });
     return () => {
       active = false;
     };
@@ -82,9 +93,8 @@ export default function Footer() {
               que tu negocio avance sin fricciones.
             </p>
             <div className="space-y-2 text-sm">
-              <p className="text-white font-semibold uppercase tracking-wide text-xs">Contacto directo</p>
-              <p className="text-gray-400">+56 9 9988 7766</p>
-              <p className="text-gray-400">hola@virtualdesk.cl</p>
+            <p className="text-white font-semibold uppercase tracking-wide text-xs">Contacto directo</p>
+            <p className="text-gray-400">+569 5601 5863</p>
             </div>
           </div>
 
@@ -127,6 +137,29 @@ export default function Footer() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10">
+        <div className="container flex flex-col items-center gap-2 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-200/80">Siguenos</p>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
+            {SOCIAL_LINKS.map((link) => {
+              const Icon = link.icon;
+              return (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  target={link.external ? '_blank' : undefined}
+                  rel={link.external ? 'noopener noreferrer' : undefined}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-gray-300 transition hover:border-indigo-300 hover:text-white"
+                >
+                  <Icon size={18} />
+                  <span className="sr-only">{link.label}</span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>

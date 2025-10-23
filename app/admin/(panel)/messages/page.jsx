@@ -2,14 +2,17 @@
 
 import { useAdmin } from '@/components/admin/AdminContext';
 import { Loader2, RefreshCw, Send, UserCircle2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-function formatDate(value) {
+const formatDate = (value) => {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString();
-}
+};
+
+const CONVERSATIONS_POLL_MS = 15000;
+const MESSAGES_POLL_MS = 5000;
 
 export default function AdminMessagesPage() {
   const { user } = useAdmin();
@@ -17,13 +20,15 @@ export default function AdminMessagesPage() {
   const [activeChannel, setActiveChannel] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const [loadingList, setLoadingList] = useState(true);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [error, setError] = useState('');
+  const conversationsTimer = useRef(null);
+  const messagesTimer = useRef(null);
 
-  const loadConversations = async (showSpinner = true) => {
+  const fetchConversations = useCallback(async (showSpinner = true) => {
     try {
-      if (showSpinner) setLoadingList(true);
+      if (showSpinner) setLoadingConversations(true);
       const res = await fetch('/api/chat', { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok) {
@@ -35,7 +40,7 @@ export default function AdminMessagesPage() {
         if (!prev && items.length > 0) {
           return items[0].channel;
         }
-        if (prev && !items.some((item) => item.channel === prev)) {
+        if (prev && !items.some((conv) => conv.channel === prev)) {
           return items.length > 0 ? items[0].channel : null;
         }
         return prev;
@@ -43,50 +48,55 @@ export default function AdminMessagesPage() {
     } catch (err) {
       setError(err.message || 'Error al cargar conversaciones.');
     } finally {
-      if (showSpinner) setLoadingList(false);
+      if (showSpinner) setLoadingConversations(false);
     }
-  };
-
-  const loadMessages = async (channel) => {
-    if (!channel) return;
-    try {
-      setLoadingThread(true);
-      const res = await fetch(`/api/chat?channel=${encodeURIComponent(channel)}`, {
-        cache: 'no-store',
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || 'No se pudieron cargar los mensajes.');
-      }
-      setMessages(Array.isArray(data.messages) ? data.messages : []);
-      setError('');
-    } catch (err) {
-      setError(err.message || 'Error al cargar mensajes.');
-    } finally {
-      setLoadingThread(false);
-    }
-  };
-
-  useEffect(() => {
-    let timer;
-    loadConversations(true);
-    timer = setInterval(() => loadConversations(false), 15000);
-    return () => {
-      if (timer) clearInterval(timer);
-    };
   }, []);
 
-  useEffect(() => {
-    if (!activeChannel) return;
-    let timer;
-    loadMessages(activeChannel);
-    timer = setInterval(() => loadMessages(activeChannel), 4000);
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [activeChannel]);
+  const fetchMessages = useCallback(
+    async (channel, showSpinner = true) => {
+      if (!channel) return;
+      try {
+        if (showSpinner) setLoadingThread(true);
+        const res = await fetch(`/api/chat?channel=${encodeURIComponent(channel)}`, {
+          cache: 'no-store',
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.message || 'No se pudieron cargar los mensajes.');
+        }
+        setMessages(Array.isArray(data.messages) ? data.messages : []);
+        if (showSpinner) setError('');
+      } catch (err) {
+        setError(err.message || 'Error al cargar mensajes.');
+      } finally {
+        if (showSpinner) setLoadingThread(false);
+      }
+    },
+    [],
+  );
 
-  const handleSend = async (event) => {
+  useEffect(() => {
+    fetchConversations(true);
+    conversationsTimer.current = setInterval(() => fetchConversations(false), CONVERSATIONS_POLL_MS);
+    return () => {
+      if (conversationsTimer.current) clearInterval(conversationsTimer.current);
+    };
+  }, [fetchConversations]);
+
+  useEffect(() => {
+    if (!activeChannel) {
+      setMessages([]);
+      return;
+    }
+    fetchMessages(activeChannel, true);
+    if (messagesTimer.current) clearInterval(messagesTimer.current);
+    messagesTimer.current = setInterval(() => fetchMessages(activeChannel, false), MESSAGES_POLL_MS);
+    return () => {
+      if (messagesTimer.current) clearInterval(messagesTimer.current);
+    };
+  }, [activeChannel, fetchMessages]);
+
+  const sendMessage = async (event) => {
     event.preventDefault();
     if (!text.trim() || !activeChannel) return;
     try {
@@ -100,14 +110,14 @@ export default function AdminMessagesPage() {
         throw new Error(data?.message || 'No se pudo enviar el mensaje.');
       }
       setText('');
-      await loadMessages(activeChannel);
+      fetchMessages(activeChannel, false);
     } catch (err) {
       setError(err.message || 'Error al enviar el mensaje.');
     }
   };
 
   const activeConversation = useMemo(
-    () => conversations.find((item) => item.channel === activeChannel),
+    () => conversations.find((conv) => conv.channel === activeChannel),
     [conversations, activeChannel],
   );
 
@@ -120,7 +130,7 @@ export default function AdminMessagesPage() {
             <span className="text-xs text-slate-500">{conversations.length}</span>
             <button
               type="button"
-              onClick={() => loadConversations(true)}
+              onClick={() => fetchConversations(true)}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
               aria-label="Actualizar conversaciones"
             >
@@ -129,15 +139,13 @@ export default function AdminMessagesPage() {
           </div>
         </div>
         <div className="max-h-[70vh] overflow-y-auto">
-          {loadingList ? (
+          {loadingConversations ? (
             <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-500">
               <Loader2 size={16} className="animate-spin" />
               Cargando...
             </div>
           ) : conversations.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-slate-500">
-              Aun no hay conversaciones.
-            </p>
+            <p className="px-4 py-6 text-center text-sm text-slate-500">Sin conversaciones por ahora.</p>
           ) : (
             conversations.map((conversation) => {
               const isActive = conversation.channel === activeChannel;
@@ -206,15 +214,10 @@ export default function AdminMessagesPage() {
                 {messages.map((message) => {
                   const mine = message.fromRole === 'admin';
                   return (
-                    <div
-                      key={message._id}
-                      className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
-                    >
+                    <div key={message._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div
                         className={`max-w-[70%] rounded-2xl px-4 py-3 text-sm shadow ${
-                          mine
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-slate-100 text-slate-800'
+                          mine ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-800'
                         }`}
                       >
                         <p className="font-medium">
@@ -232,7 +235,7 @@ export default function AdminMessagesPage() {
             )}
           </div>
 
-          <form onSubmit={handleSend} className="border-t border-slate-200 px-5 py-4">
+          <form onSubmit={sendMessage} className="border-t border-slate-200 px-5 py-4">
             <div className="flex items-center gap-3">
               <textarea
                 value={text}

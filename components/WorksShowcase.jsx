@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function getItemsPerView(width) {
-  if (width >= 1280) return 4;
-  if (width >= 1024) return 3;
+  if (width >= 1024) return 4;
   if (width >= 640) return 2;
   return 1;
 }
@@ -60,11 +59,19 @@ export default function WorksShowcase() {
 
   const slides = useMemo(() => {
     if (!itemsPerView || itemsPerView <= 0) return [];
-    const chunks = [];
-    for (let i = 0; i < works.length; i += itemsPerView) {
-      chunks.push(works.slice(i, i + itemsPerView));
+    const total = works.length;
+    if (total === 0) return [];
+    if (total <= itemsPerView) return [{ start: 0, window: works }];
+
+    const windows = [];
+    for (let start = 0; start < total; start += 1) {
+      const window = [];
+      for (let offset = 0; offset < itemsPerView; offset += 1) {
+        window.push(works[(start + offset) % total]);
+      }
+      windows.push({ start, window });
     }
-    return chunks;
+    return windows;
   }, [works, itemsPerView]);
 
   useEffect(() => {
@@ -131,15 +138,15 @@ export default function WorksShowcase() {
                 className="flex transition-transform duration-500"
                 style={{ transform: `translateX(-${index * 100}%)`, width: `${slides.length * 100}%` }}
               >
-                {slides.map((chunk, slideIndex) => (
+                {slides.map(({ start, window: chunk }, slideIndex) => (
                   <div
-                    key={slideIndex}
-                    className="grid gap-6 p-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                    key={start}
+                    className="grid gap-6 p-6 md:grid-cols-2 lg:grid-cols-4"
                     style={{ minWidth: '100%' }}
                   >
-                    {chunk.map((work) => (
+                    {chunk.map((work, idx) => (
                       <article
-                        key={work.id}
+                        key={`${work.id}-${start}-${idx}`}
                         className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
                       >
                         {work.imageUrl ? (
@@ -156,7 +163,7 @@ export default function WorksShowcase() {
                         )}
                         <div className="flex flex-1 flex-col gap-4 p-5">
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                            <span className="sr-only">
                               Orden {Number.isFinite(Number(work.order)) ? work.order : 0}
                             </span>
                             <h4 className="mt-2 text-lg font-semibold text-slate-900">{work.title}</h4>
