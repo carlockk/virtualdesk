@@ -14,9 +14,9 @@ const NAV_LINKS = [
 ];
 
 const LEGAL_LINKS = [
-  { href: '/#politicas', label: 'Politica de privacidad' },
-  { href: '/#terminos', label: 'Terminos y condiciones' },
-  { href: '/contact', label: 'Garantias y soporte' },
+  { href: '/politicas', label: 'Politica de privacidad' },
+  { href: '/terminos', label: 'Terminos y condiciones' },
+  { href: '/soporte', label: 'Garantias y soporte' },
 ];
 
 const SOCIAL_LINKS = [
