@@ -68,7 +68,7 @@ export default function TerminosPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            Si tienes preguntas sobre estos terminos o necesitas un contrato personalizado, escríbenos a
+            Si tienes preguntas sobre estos terminos o necesitas un contrato personalizado, escribenos a
             soporte@virtualdesk.cl.
           </div>
         </div>

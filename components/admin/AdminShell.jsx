@@ -9,10 +9,12 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  ListTree,
   Menu,
   MessageSquare,
   Palette,
   Users,
+  FileText,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -24,7 +26,9 @@ const NAV_ITEMS = [
   { href: '/admin/users', label: 'Usuarios', icon: Users },
   { href: '/admin/services', label: 'Servicios', icon: Briefcase },
   { href: '/admin/orders', label: 'Pedidos', icon: ClipboardList },
+  { href: '/admin/menus', label: 'Menus', icon: ListTree },
   { href: '/admin/brand', label: 'Marca', icon: Palette },
+  { href: '/admin/pages', label: 'Paginas', icon: FileText },
   { href: '/admin/works', label: 'Trabajos', icon: FolderGit2 },
   { href: '/admin/messages', label: 'Mensajes', icon: MessageSquare },
 ];

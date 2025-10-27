@@ -83,7 +83,8 @@ export default function WorksPage() {
     } else {
       params.set('page', String(page));
     }
-    router.push(`${pathname}?${params.toString()}`.replace(/\?$/, ''), { scroll: false });
+    const query = params.toString();
+    router.push(`${pathname}${query ? `?${query}` : ''}`, { scroll: false });
   };
 
   const renderPagination = () => {
@@ -137,7 +138,7 @@ export default function WorksPage() {
 
       <section className="container flex-1 py-12">
         <div className="mx-auto max-w-6xl space-y-8">
-          <header className="text-center space-y-2">
+          <header className="space-y-2 text-center">
             <h1 className="text-4xl font-bold text-slate-900">Todos los trabajos</h1>
             <p className="text-sm text-slate-600">
               Explora los proyectos que hemos construido. Los mas recientes aparecen primero.

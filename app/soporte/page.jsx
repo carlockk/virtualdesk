@@ -59,7 +59,7 @@ export default function SoportePage() {
               negocio.
             </p>
             <p className="mt-4">
-              Escríbenos a{' '}
+              Escribenos a{' '}
               <a href="mailto:soporte@virtualdesk.cl" className="font-medium underline">
                 soporte@virtualdesk.cl
               </a>{' '}

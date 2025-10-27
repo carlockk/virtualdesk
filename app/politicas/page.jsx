@@ -66,7 +66,7 @@ export default function PoliticasPage() {
           </div>
 
           <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 text-sm text-indigo-700">
-            Si tienes dudas sobre esta politica, escríbenos a soporte@virtualdesk.cl y estaremos felices de ayudarte.
+            Si tienes dudas sobre esta politica, escribenos a soporte@virtualdesk.cl y estaremos felices de ayudarte.
           </div>
         </div>
       </section>

@@ -1,20 +1,133 @@
 'use client';
-import { Briefcase, Home, Mail, Menu, X } from 'lucide-react';
+
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
 import { useAuthPanel } from './AuthPanelProvider';
 import { SUPER_ADMIN_EMAIL } from '@/lib/constants';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Menu as MenuIcon,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Home,
+  Briefcase,
+  Mail,
+  Phone,
+  Grid2x2,
+  ClipboardList,
+  MessageCircle,
+  User,
+  Settings,
+  LayoutDashboard,
+  Layers,
+  Globe,
+  Rocket,
+  ShieldCheck,
+  Star,
+  ShoppingBag,
+  Monitor,
+  Code2,
+  BookOpen,
+  Heart,
+} from 'lucide-react';
 
 const DEFAULT_BRAND = { name: 'VirtualDesk', logoUrl: '/virt.jpg' };
 
+const FALLBACK_MENUS = [
+  { id: 'home', name: 'Inicio', href: '/', order: 0, icon: 'home', submenus: [] },
+  { id: 'services', name: 'Servicios', href: '/services', order: 1, icon: 'briefcase', submenus: [] },
+  { id: 'contact', name: 'Contacto', href: '/contact', order: 2, icon: 'mail', submenus: [] },
+  { id: 'orders', name: 'Pedidos', href: '/orders', order: 3, icon: 'clipboardList', submenus: [] },
+];
+
+const MENU_ICON_MAP = {
+  home: Home,
+  inicio: Home,
+  briefcase: Briefcase,
+  services: Briefcase,
+  servicio: Briefcase,
+  servicios: Briefcase,
+  mail: Mail,
+  contact: Mail,
+  contacto: Mail,
+  phone: Phone,
+  telefono: Phone,
+  grid: Grid2x2,
+  grid2x2: Grid2x2,
+  dashboard: Grid2x2,
+  clipboard: ClipboardList,
+  clipboardlist: ClipboardList,
+  pedidos: ClipboardList,
+  orders: ClipboardList,
+  message: MessageCircle,
+  mensajes: MessageCircle,
+  messagecircle: MessageCircle,
+  user: User,
+  perfil: User,
+  settings: Settings,
+  ajustes: Settings,
+  layoutdashboard: LayoutDashboard,
+  panel: LayoutDashboard,
+  layers: Layers,
+  monitor: Monitor,
+  globe: Globe,
+  rocket: Rocket,
+  shieldcheck: ShieldCheck,
+  security: ShieldCheck,
+  star: Star,
+  shoppingbag: ShoppingBag,
+  tienda: ShoppingBag,
+  code: Code2,
+  code2: Code2,
+  bookopen: BookOpen,
+  documentacion: BookOpen,
+  heart: Heart,
+};
+
+function normalizeIconKey(name = '') {
+  return name.trim().replace(/[\s_-]+/g, '').toLowerCase();
+}
+
+function getMenuIconComponent(iconName, menuName) {
+  const iconKey = iconName ? normalizeIconKey(iconName) : '';
+  if (iconKey && MENU_ICON_MAP[iconKey]) {
+    return MENU_ICON_MAP[iconKey];
+  }
+  const fallbackKey = normalizeIconKey(menuName);
+  return MENU_ICON_MAP[fallbackKey] || null;
+}
+
+const sortMenus = (items) =>
+  items
+    .map((menu, index) => ({
+      ...menu,
+      order: typeof menu.order === 'number' ? menu.order : index,
+      submenus: Array.isArray(menu.submenus)
+        ? menu.submenus
+            .map((child, childIndex) => ({
+              ...child,
+              order: typeof child.order === 'number' ? child.order : childIndex,
+            }))
+            .sort((a, b) => a.order - b.order)
+        : [],
+    }))
+    .sort((a, b) => a.order - b.order);
+
 export default function Header() {
   const [user, setUser] = useState(null);
+  const [brand, setBrand] = useState(DEFAULT_BRAND);
+  const [menus, setMenus] = useState([]);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const { show: openAuthPanel } = useAuthPanel();
-  const isAdmin = user?.role === 'admin';
-  const [brand, setBrand] = useState(DEFAULT_BRAND);
+
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+  const isSuperAdmin = useMemo(
+    () => (user?.email ? user.email.toLowerCase() === SUPER_ADMIN_EMAIL : false),
+    [user?.email],
+  );
 
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
@@ -48,6 +161,22 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    fetch('/api/menus', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Menu fetch failed'))))
+      .then((data) => {
+        if (!active) return;
+        if (Array.isArray(data?.menus)) {
+          setMenus(data.menus);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const handler = (event) => {
       const updatedUser = event?.detail?.user;
       if (updatedUser) {
@@ -69,134 +198,96 @@ export default function Header() {
     };
   }, []);
 
-  // Detecta scroll para activar transparencia/blur solo después de mover la página
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY || document.documentElement.scrollTop;
-      setScrolled(y > 8); // umbral pequeño para activar estado "scrolled"
+      setScrolled(y > 8);
     };
-    onScroll(); // estado inicial
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     setUser(null);
     setMobileOpen(false);
-    location.href = '/';
-  };
+    window.location.href = '/';
+  }, []);
+
+  const sortedMenuItems = useMemo(() => {
+    const source = menus.length > 0 ? menus : FALLBACK_MENUS;
+    return sortMenus(source);
+  }, [menus]);
+
+  const topActions = useMemo(() => {
+    if (!user) return [];
+    const actions = [];
+
+    if (isSuperAdmin) {
+      actions.push({ type: 'link', label: 'Centro admin', href: '/admin/messages' });
+      actions.push({ type: 'link', label: 'Crear super admin', href: '/admin/bootstrap' });
+    } else if (isAdmin) {
+      actions.push({ type: 'link', label: 'Panel admin', href: '/admin' });
+    }
+
+    actions.push({ type: 'link', label: 'Ver perfil', href: '/profile' });
+    actions.push({ type: 'button', label: 'Salir', onClick: logout });
+    return actions;
+  }, [user, isAdmin, isSuperAdmin, logout]);
 
   const closeMobile = () => setMobileOpen(false);
-  const triggerAuth = (mode) => {
+
+  const handleAuth = (mode) => {
     openAuthPanel(mode);
     closeMobile();
   };
 
-  const isSuperSeed = useMemo(
-    () => (user?.email ? user.email.toLowerCase() === SUPER_ADMIN_EMAIL : false),
-    [user?.email],
-  );
-
-  const navLinks = (
-    <>
-      <Link href="/" className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-        <Home className="inline mr-2" size={18} />
-        Inicio
-      </Link>
-      <Link href="/services" className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-        <Briefcase className="inline mr-2" size={18} />
-        Servicios
-      </Link>
-      <Link href="/contact" className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-        <Mail className="inline mr-2" size={18} />
-        Contacto
-      </Link>
-      <Link href="/orders" className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-        Mis pedidos
-      </Link>
-      {user && !isAdmin && (
-        <Link href="/messages" className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-          Mis mensajes
-        </Link>
-      )}
-      {isAdmin && (
-        <Link
-          href="/admin"
-          className="px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700"
-          onClick={closeMobile}
-        >
-          Panel admin
-        </Link>
-      )}
-      {user ? (
-        <>
-          <Link
-            href="/profile"
-            className="px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50"
-            onClick={closeMobile}
-          >
-            Ver perfil
-          </Link>
-          <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm">{user.name}</span>
-          <button onClick={logout} className="px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50">
-            Salir
-          </button>
-        </>
-      ) : (
-        <>
-          <button
-            type="button"
-            className="px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50"
-            onClick={() => triggerAuth('login')}
-          >
-            Ingresar
-          </button>
-          <button
-            type="button"
-            className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-            onClick={() => triggerAuth('register')}
-          >
-            Crear cuenta
-          </button>
-        </>
-      )}
-    </>
-  );
+  const toggleExpanded = (id) => {
+    setExpandedMenu((prev) => (prev === id ? null : id));
+  };
 
   return (
     <header
       className={[
-        'sticky top-0 z-40 overflow-visible transition-all duration-300',
-        scrolled
-          ? 'bg-white/90 backdrop-blur shadow-sm supports-[backdrop-filter]:bg-white/70'
-          : 'bg-white shadow-none', // SÓLIDO arriba para que el slider no se vea debajo
+        'sticky top-0 z-40 flex flex-col transition',
+        scrolled ? 'bg-white shadow-sm' : 'bg-white shadow-none',
       ].join(' ')}
     >
       {user && (
-        <div className="bg-indigo-700/95 text-white text-[10px] leading-4 py-1 text-center font-medium tracking-wide">
-          <span>{`Bienvenido${user.name ? ` ${user.name}` : ''}`}</span>
-          {isSuperSeed && (
-            <span className="ml-3 inline-flex items-center gap-2">
-              <Link
-                href="/admin/messages"
-                className="underline underline-offset-2 decoration-white/60 hover:text-indigo-100 transition"
-              >
-                Centro admin
-              </Link>
-              <Link
-                href="/admin/bootstrap"
-                className="px-2 py-0.5 rounded bg-white/15 hover:bg-white/25 transition"
-              >
-                Crear super admin
-              </Link>
-            </span>
-          )}
+        <div className="bg-indigo-700/95 text-[11px] leading-4 text-white">
+          <div className="container flex flex-col gap-2 py-2 text-center font-medium tracking-wide md:flex-row md:items-center md:justify-between">
+            <span>Bienvenido{user.name ? ` ${user.name}` : ''}</span>
+            {topActions.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
+                {topActions.map((action) =>
+                  action.type === 'link' ? (
+                    <Link
+                      key={action.label}
+                      href={action.href}
+                      className="inline-flex items-center gap-2 rounded border border-white/20 bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
+                      onClick={closeMobile}
+                    >
+                      {action.label}
+                    </Link>
+                  ) : (
+                    <button
+                      key={action.label}
+                      type="button"
+                      onClick={action.onClick}
+                      className="inline-flex items-center gap-2 rounded border border-white/20 bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
+                    >
+                      {action.label}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
-      {/* Barra superior: pb-0 para que el hero pegue justo al borde inferior del header */}
+
       <div className="container pt-1 md:pt-2 pb-0 flex justify-between items-start md:items-center relative">
-        {/* LOGO con margen en mobile para que no quede pegado a la izquierda */}
         <Link
           href="/"
           className="relative flex items-start mx-3 sm:mx-0 shrink-0"
@@ -205,7 +296,7 @@ export default function Header() {
           <div className="relative w-20 h-20 md:w-28 md:h-28 -mb-6 md:-mb-8 translate-y-2 md:translate-y-3 rounded-full border-4 border-white shadow-2xl overflow-hidden ring-4 ring-indigo-50 z-[70]">
             <Image
               src={brand.logoUrl || DEFAULT_BRAND.logoUrl}
-              alt={brand.name || 'Marca'}
+              alt={brand.name || DEFAULT_BRAND.name}
               fill
               sizes="112px"
               className="object-cover"
@@ -215,111 +306,180 @@ export default function Header() {
           <span className="sr-only">{brand.name || DEFAULT_BRAND.name}</span>
         </Link>
 
-        <nav className="hidden md:flex gap-2 items-center">{navLinks}</nav>
+        <nav className="hidden md:flex gap-2 items-center md:ml-auto md:justify-end">
+          {sortedMenuItems.map((menu) => {
+            const IconComponent = getMenuIconComponent(menu.icon, menu.name);
+            return (
+              <div key={menu.id || menu.name} className="relative group">
+                <Link
+                  href={menu.href || '#'}
+                  className="inline-flex items-center gap-1 rounded-lg px-4 py-2 text-sm text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {IconComponent && <IconComponent size={16} className="text-indigo-500" />}
+                  <span>{menu.name}</span>
+                  {menu.submenus.length > 0 && (
+                    <ChevronDown size={14} className="text-slate-400 group-hover:text-indigo-600" />
+                  )}
+                </Link>
+                {menu.submenus.length > 0 && (
+                  <div className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-56 rounded-xl border border-slate-100 bg-white p-2 shadow-lg opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+                    {menu.submenus.map((child) => (
+                      <Link
+                        key={`${menu.id}-${child.name}`}
+                        href={child.href || '#'}
+                        className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                        onClick={closeMobile}
+                      >
+                        {child.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        <div className="hidden md:flex items-center gap-2">
+          {user ? null : (
+            <>
+              <button
+                type="button"
+                onClick={() => handleAuth('login')}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Ingresar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAuth('register')}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+              >
+                Crear cuenta
+              </button>
+            </>
+          )}
+        </div>
 
         <button
           type="button"
-          className="md:hidden p-2 rounded-lg border text-gray-600 hover:bg-indigo-50 bg-white/90"
+          className="md:hidden rounded-lg border border-slate-200 p-2 text-slate-600"
           onClick={() => setMobileOpen((prev) => !prev)}
           aria-expanded={mobileOpen}
-          aria-label="Alternar menu"
+          aria-label="Abrir menu"
         >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          {mobileOpen ? <X size={22} /> : <MenuIcon size={22} />}
         </button>
       </div>
 
-      {/* MENÚ MÓVIL: lista sin marcadores + padding top para despegar del logo */}
       {mobileOpen && (
-        <div className="md:hidden border-t bg-white shadow-xl relative z-[60]">
-          <div className="container pt-12 sm:pt-8 pb-4">
-            <ul className="list-none m-0 p-0 space-y-2">
-              <li>
-                <Link href="/" className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-                  <Home className="inline mr-2" size={18} />
-                  Inicio
-                </Link>
-              </li>
-              <li>
-                <Link href="/services" className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-                  <Briefcase className="inline mr-2" size={18} />
-                  Servicios
-                </Link>
-              </li>
-              <li>
-                <Link href="/contact" className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-                  <Mail className="inline mr-2" size={18} />
-                  Contacto
-                </Link>
-              </li>
-              <li>
-                <Link href="/orders" className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-                  Mis pedidos
-                </Link>
-              </li>
+        <div className="md:hidden border-t border-slate-200 bg-white shadow-lg">
+          <div className="container py-4">
+            <ul className="space-y-2">
+              {sortedMenuItems.map((menu) => {
+                const hasChildren = menu.submenus.length > 0;
+                const isExpanded = expandedMenu === (menu.id || menu.name);
+                const IconComponent = getMenuIconComponent(menu.icon, menu.name);
+                return (
+                  <li key={menu.id || menu.name}>
+                    <div className="flex items-center justify-between">
+                      <Link
+                        href={menu.href || '#'}
+                        className="flex-1 rounded-lg px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50"
+                        onClick={closeMobile}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          {IconComponent ? <IconComponent size={16} className="text-indigo-500" /> : null}
+                          <span>{menu.name}</span>
+                        </span>
+                      </Link>
+                      {hasChildren && (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(menu.id || menu.name)}
+                          className="rounded-full border border-slate-200 p-1 text-slate-500"
+                          aria-label="Mostrar submenus"
+                        >
+                          <ChevronRight
+                            size={16}
+                            className={`transition ${isExpanded ? 'rotate-90 text-indigo-600' : ''}`}
+                          />
+                        </button>
+                      )}
+                    </div>
+                    {hasChildren && isExpanded && (
+                      <ul className="mt-1 space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-2">
+                        {menu.submenus.map((child) => (
+                          <li key={`${menu.id}-${child.name}`}>
+                            <Link
+                              href={child.href || '#'}
+                              className="block rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-indigo-100"
+                              onClick={closeMobile}
+                            >
+                              {child.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
 
-              {user && !isAdmin && (
-                <li>
-                  <Link href="/messages" className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700" onClick={closeMobile}>
-                    Mis mensajes
-                  </Link>
-                </li>
-              )}
-
-              {isAdmin && (
-                <li>
+            <div className="mt-6 border-t border-slate-200 pt-4">
+              {user ? (
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="font-medium text-slate-800">{user.name}</div>
                   <Link
-                    href="/admin"
-                    className="block px-4 py-2 rounded-lg hover:bg-indigo-50 text-gray-700"
+                    href="/profile"
+                    className="block rounded-lg border border-slate-200 px-4 py-2 text-center hover:bg-slate-50"
                     onClick={closeMobile}
                   >
-                    Panel admin
+                    Ver perfil
                   </Link>
-                </li>
-              )}
-
-              <li className="pt-1">
-                {user ? (
-                  <div className="flex flex-col gap-2 px-1">
+                  {isSuperAdmin ? (
                     <Link
-                      href="/profile"
-                      className="w-full px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50 text-center"
+                      href="/admin/messages"
+                      className="block rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-center font-medium text-indigo-700 hover:bg-indigo-100"
                       onClick={closeMobile}
                     >
-                      Ver perfil
+                      Centro admin
                     </Link>
-                    <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
-                      <span className="font-medium truncate">{user.name}</span>
-                    </div>
-                    <button onClick={logout} className="px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50">
-                      Salir
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2 px-1">
-                    <button
-                      type="button"
-                      className="w-full px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50"
-                      onClick={() => triggerAuth('login')}
-                    >
-                      Ingresar
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                      onClick={() => triggerAuth('register')}
-                    >
-                      Crear cuenta
-                    </button>
-                  </div>
-                )}
-              </li>
-            </ul>
+                  ) : (
+                    isAdmin && (
+                      <Link
+                        href="/admin"
+                        className="block rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-center font-medium text-indigo-700 hover:bg-indigo-100"
+                        onClick={closeMobile}
+                      >
+                        Panel admin
+                      </Link>
+                    )
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAuth('login')}
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                  >
+                    Ingresar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAuth('register')}
+                    className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+                  >
+                    Crear cuenta
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
     </header>
   );
 }
-
-
-
