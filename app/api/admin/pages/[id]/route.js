@@ -1,8 +1,33 @@
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { dbConnect } from '@/lib/mongodb';
 import Page from '@/models/Page';
-import { ensureAdmin, serializePage, slugify } from '@/lib/pages-admin';
+import { ensureAdmin, normalizeSectionPayload, serializePage, slugify } from '@/lib/pages-admin';
+
+const cardItemSchema = z
+  .object({
+    id: z.string().trim().max(120).optional(),
+    title: z.string().trim().min(1, 'La tarjeta debe tener un titulo.').max(120),
+    description: z.string().trim().max(500).optional(),
+    imageUrl: z.string().trim().max(2048).optional(),
+    linkLabel: z.string().trim().max(80).optional(),
+    linkUrl: z.string().trim().max(2048).optional(),
+    order: z.number().int().optional(),
+  })
+  .strict();
+
+const sectionSchema = z
+  .object({
+    id: z.string().trim().max(120).optional(),
+    type: z.literal('cards').optional(),
+    position: z.enum(['belowTitle', 'main', 'afterContent']).optional(),
+    title: z.string().trim().max(120).optional(),
+    description: z.string().trim().max(500).optional(),
+    order: z.number().int().optional(),
+    items: z.array(cardItemSchema).optional(),
+  })
+  .strict();
 
 const updateSchema = z
   .object({
@@ -14,6 +39,7 @@ const updateSchema = z
     status: z.enum(['draft', 'published']).optional(),
     order: z.number().int().optional(),
     path: z.string().trim().max(200).optional(),
+    sections: z.array(sectionSchema).optional(),
   })
   .strict();
 
@@ -124,6 +150,22 @@ export async function PATCH(req, context) {
 
     if (typeof updates.order !== 'undefined') {
       page.order = updates.order;
+    }
+
+    if (typeof updates.sections !== 'undefined') {
+      const rawSections = Array.isArray(updates.sections) ? updates.sections : [];
+      const normalizedSections = normalizeSectionPayload(rawSections).map((section, index) => ({
+        ...section,
+        id: section.id || crypto.randomUUID(),
+        position: section.position || 'main',
+        order: index,
+        items: section.items.map((item, itemIndex) => ({
+          ...item,
+          id: item.id || crypto.randomUUID(),
+          order: itemIndex,
+        })),
+      }));
+      page.sections = normalizedSections;
     }
 
     await page.save();

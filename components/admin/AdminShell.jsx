@@ -24,12 +24,19 @@ import { useEffect, useMemo, useState } from 'react';
 const NAV_ITEMS = [
   { href: '/admin', label: 'Resumen', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Usuarios', icon: Users },
-  { href: '/admin/services', label: 'Servicios', icon: Briefcase },
-  { href: '/admin/orders', label: 'Pedidos', icon: ClipboardList },
+  {
+    href: '/admin/pages',
+    label: 'Paginas',
+    icon: FileText,
+    children: [
+      { href: '/admin/pages', label: 'Gestionar paginas', icon: FileText },
+      { href: '/admin/services', label: 'Servicios', icon: Briefcase },
+      { href: '/admin/works', label: 'Trabajos', icon: FolderGit2 },
+      { href: '/admin/orders', label: 'Pedidos', icon: ClipboardList },
+    ],
+  },
   { href: '/admin/menus', label: 'Menus', icon: ListTree },
   { href: '/admin/brand', label: 'Marca', icon: Palette },
-  { href: '/admin/pages', label: 'Paginas', icon: FileText },
-  { href: '/admin/works', label: 'Trabajos', icon: FolderGit2 },
   { href: '/admin/messages', label: 'Mensajes', icon: MessageSquare },
 ];
 
@@ -43,6 +50,7 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [brand, setBrand] = useState(DEFAULT_BRAND);
+  const [expandedSections, setExpandedSections] = useState(new Set());
 
   useEffect(() => {
     let active = true;
@@ -81,13 +89,54 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
 
   const navLinks = useMemo(() => {
     return NAV_ITEMS.map((item) => {
-      const active =
+      const children = Array.isArray(item.children)
+        ? item.children.map((child) => {
+            const childActive =
+              child.href === '/admin'
+                ? pathname === '/admin'
+                : pathname?.startsWith(child.href);
+            return { ...child, active: Boolean(childActive) };
+          })
+        : [];
+
+      const selfActive =
         item.href === '/admin'
           ? pathname === '/admin'
           : pathname?.startsWith(item.href);
-      return { ...item, active };
+
+      const hasChildActive = children.some((child) => child.active);
+
+      return {
+        ...item,
+        active: Boolean(selfActive || hasChildActive),
+        children,
+      };
     });
   }, [pathname]);
+
+  useEffect(() => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      navLinks.forEach((item) => {
+        if (item.children && item.children.length > 0 && item.active) {
+          next.add(item.href);
+        }
+      });
+      return next;
+    });
+  }, [navLinks]);
+
+  const toggleSection = (href) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) {
+        next.delete(href);
+      } else {
+        next.add(href);
+      }
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     try {
@@ -123,18 +172,59 @@ export default function AdminShell({ user, isSuperAdmin, children }) {
             const Icon = item.icon;
             return (
               <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                <div
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
                     item.active
                       ? 'bg-indigo-100 text-indigo-700'
                       : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
                   }`}
                 >
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-                </Link>
+                  <Link
+                    href={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex flex-1 items-center gap-3"
+                  >
+                    <Icon size={18} />
+                    <span>{item.label}</span>
+                  </Link>
+                  {item.children && item.children.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(item.href)}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-xs text-slate-500 hover:border-indigo-200 hover:text-indigo-600"
+                    >
+                      {expandedSections.has(item.href) ? '−' : '+'}
+                    </button>
+                  )}
+                </div>
+
+                {item.children && item.children.length > 0 && (
+                  <ul
+                    className={`mt-1 space-y-1 border-l border-slate-100 pl-6 transition-all ${
+                      expandedSections.has(item.href) ? 'max-h-96 opacity-100' : 'max-h-0 overflow-hidden opacity-0'
+                    }`}
+                  >
+                    {item.children.map((child) => {
+                      const ChildIcon = child.icon;
+                      return (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition ${
+                              child.active
+                                ? 'bg-indigo-50 text-indigo-700'
+                                : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700'
+                            }`}
+                          >
+                            {ChildIcon ? <ChildIcon size={16} /> : null}
+                            <span>{child.label}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}

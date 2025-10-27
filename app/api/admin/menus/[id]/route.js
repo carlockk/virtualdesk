@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { dbConnect } from '@/lib/mongodb';
 import Menu from '@/models/Menu';
-import { ensureAdmin, serializeMenu } from '@/lib/menus-admin';
+import { ensureAdmin, inferMenuCategory, serializeMenu } from '@/lib/menus-admin';
 
 const submenuInputSchema = z
   .object({
@@ -18,6 +18,7 @@ const menuUpdateSchema = z
     name: z.string().trim().min(1, 'El nombre es obligatorio.').max(60).optional(),
     href: z.string().trim().min(1, 'El enlace es obligatorio.').max(2048).optional(),
     icon: z.string().trim().max(60).optional(),
+    category: z.enum(['global', 'pages']).optional(),
     order: z.number().int().optional(),
     enabled: z.boolean().optional(),
     submenus: z.array(submenuInputSchema).default([]).optional(),
@@ -63,6 +64,9 @@ export async function PATCH(req, context) {
     if (typeof update.name !== 'undefined') menu.name = update.name.trim();
     if (typeof update.href !== 'undefined') menu.href = update.href.trim();
     if (typeof update.icon !== 'undefined') menu.icon = update.icon.trim();
+    if (typeof update.category !== 'undefined') {
+      menu.category = update.category;
+    }
     if (typeof update.order !== 'undefined') menu.order = update.order;
     if (typeof update.enabled !== 'undefined') menu.enabled = update.enabled;
     if (Array.isArray(update.submenus)) {
@@ -71,6 +75,10 @@ export async function PATCH(req, context) {
         href: item.href,
         order: item.order ?? 0,
       }));
+    }
+
+    if (!menu.category) {
+      menu.category = inferMenuCategory(menu.href);
     }
 
     await menu.save();

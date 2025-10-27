@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { dbConnect } from '@/lib/mongodb';
 import Menu from '@/models/Menu';
-import { ensureAdmin, ensureDefaultMenus, serializeMenu } from '@/lib/menus-admin';
+import { ensureAdmin, ensureDefaultMenus, inferMenuCategory, serializeMenu } from '@/lib/menus-admin';
 
 const submenuInputSchema = z
   .object({
@@ -16,6 +16,7 @@ const menuInputSchema = z
     name: z.string().trim().min(1, 'El nombre es obligatorio.').max(60),
     href: z.string().trim().min(1, 'El enlace es obligatorio.').max(2048),
     icon: z.string().trim().max(60).optional(),
+    category: z.enum(['global', 'pages']).optional(),
     order: z.number().int().optional(),
     enabled: z.boolean().optional(),
     submenus: z.array(submenuInputSchema).optional(),
@@ -60,10 +61,12 @@ export async function POST(req) {
     }
 
     const data = parsed.data;
+    const category = data.category || inferMenuCategory(data.href);
     const doc = await Menu.create({
       name: data.name,
       href: data.href,
       icon: data.icon?.trim() || '',
+      category,
       order: data.order ?? 0,
       enabled: data.enabled !== false,
       submenus: Array.isArray(data.submenus)

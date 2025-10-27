@@ -34,6 +34,7 @@ const INITIAL_FORM = {
   name: '',
   href: '',
   icon: '',
+  category: 'global',
   order: 0,
   enabled: true,
   submenus: [],
@@ -113,6 +114,12 @@ const ICON_LIBRARY = [
   { value: 'heart', label: 'Favorito', icon: Heart },
 ];
 
+function IconRenderer({ name, size = 16, className = '' }) {
+  const IconComponent = getIconComponent(name);
+  if (!IconComponent) return null;
+  return <IconComponent size={size} className={className} />;
+}
+
 function normalizeIconKey(iconName = '') {
   return iconName.trim().replace(/[\s_-]+/g, '').toLowerCase();
 }
@@ -156,6 +163,8 @@ export default function MenusManager() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState('');
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [iconSearch, setIconSearch] = useState('');
 
   const loadMenus = async () => {
     try {
@@ -211,6 +220,7 @@ export default function MenusManager() {
       name: menu.name || '',
       href: menu.href || '',
       icon: menu.icon || '',
+      category: menu.category || 'global',
       order: typeof menu.order === 'number' ? menu.order : 0,
       enabled: menu.enabled !== false,
       submenus: Array.isArray(menu.submenus)
@@ -230,6 +240,21 @@ export default function MenusManager() {
     setEditingId(null);
     setFormError('');
     setSaving(false);
+  };
+
+  const openIconPicker = () => {
+    setIconSearch('');
+    setIconPickerOpen(true);
+  };
+
+  const closeIconPicker = () => setIconPickerOpen(false);
+
+  const handleIconSelect = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      icon: value,
+    }));
+    setIconPickerOpen(false);
   };
 
   const updateField = (field) => (event) => {
@@ -288,6 +313,7 @@ export default function MenusManager() {
       ...prev,
       href: page.path,
       name: prev.name.trim() ? prev.name : page.title,
+      category: 'pages',
     }));
   };
 
@@ -322,6 +348,7 @@ export default function MenusManager() {
       name: formData.name.trim(),
       href: formData.href.trim(),
       icon: formData.icon.trim(),
+      category: formData.category || 'global',
       order: Number(formData.order) || 0,
       enabled: Boolean(formData.enabled),
       submenus: formData.submenus
@@ -425,7 +452,16 @@ export default function MenusManager() {
     return matched?.id || '';
   }, [findPageByHref, formData.href]);
 
-  const iconPreview = useMemo(() => getIconComponent(formData.icon), [formData.icon]);
+  const iconPreview = useMemo(() => Boolean(getIconComponent(formData.icon)), [formData.icon]);
+  const filteredIconOptions = useMemo(() => {
+    const term = iconSearch.trim().toLowerCase();
+    if (!term) return ICON_LIBRARY;
+    return ICON_LIBRARY.filter((option) => {
+      const label = option.label.toLowerCase();
+      const value = (option.value || '').toLowerCase();
+      return label.includes(term) || value.includes(term);
+    });
+  }, [iconSearch]);
   const totalMenus = menus.length;
 
   return (
@@ -471,7 +507,7 @@ export default function MenusManager() {
       ) : (
         <div className="space-y-4">
           {menus.map((menu) => {
-          const IconComponent = getIconComponent(menu.icon);
+          const hasIcon = Boolean(getIconComponent(menu.icon));
           return (
             <article
               key={menu.id}
@@ -480,14 +516,25 @@ export default function MenusManager() {
               <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-3">
                   <span className="mt-1 rounded-full bg-indigo-100 p-2 text-indigo-600">
-                    {IconComponent ? (
-                      <IconComponent size={16} className="text-indigo-600" />
+                    {hasIcon ? (
+                      <IconRenderer name={menu.icon} size={16} className="text-indigo-600" />
                     ) : (
                       <ListTree size={16} className="text-indigo-600" />
                     )}
                   </span>
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">{menu.name}</h2>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      {menu.name}
+                      <span
+                        className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          (menu.category || 'global') === 'pages'
+                            ? 'bg-sky-100 text-sky-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {(menu.category || 'global') === 'pages' ? 'Paginas' : 'Principal'}
+                      </span>
+                    </h2>
                     <p className="text-sm text-slate-500">
                       {menu.href}{' '}
                       {menu.enabled ? (
@@ -571,16 +618,34 @@ export default function MenusManager() {
                 required
               />
             </label>
-            <label className="space-y-1 text-sm">
+                        <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-700">Icono (opcional)</span>
-              <input
-                type="text"
-                list="menu-icon-options"
-                value={formData.icon}
-                onChange={updateField('icon')}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                placeholder="Selecciona o escribe (ej: home, briefcase, mail)"
-              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="text"
+                  list="menu-icon-options"
+                  value={formData.icon}
+                  onChange={updateField('icon')}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Selecciona o escribe (ej: home, briefcase, mail)"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openIconPicker}
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    Elegir icono
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, icon: '' }))}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:border-slate-300 hover:text-indigo-600"
+                  >
+                    Sin icono
+                  </button>
+                </div>
+              </div>
               <datalist id="menu-icon-options">
                 {ICON_LIBRARY.map((option) => (
                   <option key={option.value || 'none'} value={option.value}>
@@ -589,59 +654,33 @@ export default function MenusManager() {
                 ))}
               </datalist>
               <p className="text-xs text-slate-400">
-                Usa iconos de Lucide React. Puedes elegir de la lista o escribir el nombre.
+                Usa iconos de Lucide React. Puedes escribir el nombre o abrir el catalogo para elegirlos visualmente.
               </p>
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span>Vista previa:</span>
                 {iconPreview ? (
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-indigo-600">
-                    {(() => {
-                      const PreviewIcon = iconPreview;
-                      return <PreviewIcon size={16} />;
-                    })()}
+                    <IconRenderer name={formData.icon} size={16} />
                   </span>
                 ) : (
                   <span>Sin icono</span>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, icon: '' }))}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                    formData.icon.trim() === ''
-                      ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
-                  }`}
-                >
-                  <span className="inline-block h-3 w-3 rounded-full border border-slate-300" />
-                  <span>Sin icono</span>
-                </button>
-                {ICON_LIBRARY.filter((option) => option.value).map((option) => {
-                  const QuickIcon = getIconComponent(option.value);
-                  const isActive = normalizeIconKey(formData.icon) === normalizeIconKey(option.value);
-                  return (
-                    <button
-                      key={`quick-${option.value}`}
-                      type="button"
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          icon: option.value,
-                        }))
-                      }
-                      className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                        isActive
-                          ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
-                      }`}
-                    >
-                      {QuickIcon ? <QuickIcon size={14} /> : null}
-                      <span>{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            </label>
+
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-slate-700">Ubicación</span>
+              <select
+                value={formData.category}
+                onChange={updateField('category')}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="global">Menú principal</option>
+                <option value="pages">Paginas (submenu automatico)</option>
+              </select>
+              <p className="text-xs text-slate-400">
+                Elige si este enlace aparece como item principal o dentro del grupo Paginas.
+              </p>
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-700">Orden</span>
@@ -820,6 +859,84 @@ export default function MenusManager() {
           </div>
         </form>
       </Dialog>
+
+      {iconPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Seleccionar icono</h2>
+                <p className="text-xs text-slate-500">Los iconos provienen de lucide-react.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeIconPicker}
+                className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </header>
+            <div className="max-h-[70vh] overflow-y-auto px-6 py-6">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={iconSearch}
+                    onChange={(event) => setIconSearch(event.target.value)}
+                    placeholder="Buscar por nombre..."
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 md:w-64"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleIconSelect('');
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                  >
+                    Sin icono
+                  </button>
+                </div>
+                <div className="text-xs text-slate-500">
+                  {filteredIconOptions.length} icono{filteredIconOptions.length === 1 ? '' : 's'} disponibles
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {filteredIconOptions.map((option) => {
+                  const isActive = normalizeIconKey(formData.icon) === normalizeIconKey(option.value);
+                  return (
+                    <button
+                      key={`picker-${option.value || 'none'}`}
+                      type="button"
+                      onClick={() => handleIconSelect(option.value)}
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition ${
+                        isActive
+                          ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                      }`}
+                    >
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-indigo-600">
+                        <IconRenderer name={option.value} size={16} />
+                      </span>
+                      <span className="flex-1 text-left">
+                        <span className="block text-sm font-medium">{option.label}</span>
+                        {option.value ? <span className="block text-xs text-slate-400">{option.value}</span> : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {filteredIconOptions.length === 0 && (
+                <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  No se encontraron iconos para “{iconSearch}”.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

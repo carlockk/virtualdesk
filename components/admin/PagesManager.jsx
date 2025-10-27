@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileText,
   Loader2,
@@ -12,7 +12,11 @@ import {
   EyeOff,
   Image as ImageIcon,
   Link as LinkIcon,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
 } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 const INITIAL_FORM = {
   title: '',
@@ -23,13 +27,14 @@ const INITIAL_FORM = {
   status: 'published',
   order: 0,
   path: '',
+  sections: [],
 };
 
 function slugify(value) {
   return value
     .toString()
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -44,6 +49,77 @@ function formatDate(value) {
   return date.toLocaleString();
 }
 
+function excerptFromHtml(html, maxLength = 200) {
+  if (!html) return '';
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trim()}…`;
+}
+
+const CARD_POSITIONS = [
+  { value: 'belowTitle', label: 'Debajo del titulo' },
+  { value: 'main', label: 'Antes del contenido principal' },
+  { value: 'afterContent', label: 'Debajo de la descripcion' },
+];
+
+function uniqueId(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function moveItem(array, fromIndex, toIndex) {
+  if (fromIndex === toIndex) return array;
+  const next = array.slice();
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+}
+
+function prepareSectionsForForm(sections = []) {
+  if (!Array.isArray(sections)) return [];
+  return sections
+    .slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .filter((section) => section && section.type === 'cards')
+    .map((section) => ({
+      id: section.id || uniqueId('section'),
+      type: 'cards',
+      position: section.position || 'main',
+      title: section.title || '',
+      description: section.description || '',
+      items: Array.isArray(section.items)
+        ? section.items
+            .slice()
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .map((item) => ({
+            id: item.id || uniqueId('card'),
+            title: item.title || '',
+            description: item.description || '',
+            imageUrl: item.imageUrl || '',
+            linkLabel: item.linkLabel || '',
+            linkUrl: item.linkUrl || '',
+          }))
+        : [],
+    }));
+}
+
+const createEmptyCard = () => ({
+  id: uniqueId('card'),
+  title: '',
+  description: '',
+  imageUrl: '',
+  linkLabel: '',
+  linkUrl: '',
+});
+
+const createEmptySection = () => ({
+  id: uniqueId('section'),
+  type: 'cards',
+  position: 'main',
+  title: '',
+  description: '',
+  items: [],
+});
+
 export default function PagesManager() {
   const [pages, setPages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +131,9 @@ export default function PagesManager() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState('');
+  const [formError, setFormError] = useState('');
+  const [heroUploading, setHeroUploading] = useState(false);
+  const heroFileInputRef = useRef(null);
 
   const loadPages = async () => {
     try {
@@ -94,6 +173,7 @@ export default function PagesManager() {
     setFormData(INITIAL_FORM);
     setEditingId(null);
     setSaving(false);
+    setFormError('');
   };
 
   const openCreate = () => {
@@ -101,6 +181,7 @@ export default function PagesManager() {
     setFormData({ ...INITIAL_FORM, status: 'published' });
     setEditingId(null);
     setDialogOpen(true);
+    setFormError('');
   };
 
   const openEdit = (page) => {
@@ -115,8 +196,10 @@ export default function PagesManager() {
       status: page.status || 'draft',
       order: typeof page.order === 'number' ? page.order : 0,
       path: page.path || '',
+      sections: prepareSectionsForForm(page.sections),
     });
     setDialogOpen(true);
+    setFormError('');
   };
 
   const handleFieldChange = (field) => (event) => {
@@ -125,6 +208,146 @@ export default function PagesManager() {
     if (field === 'title' && formMode === 'create') {
       const generated = slugify(value);
       setFormData((prev) => ({ ...prev, slug: generated }));
+    }
+  };
+
+  const handleContentChange = useCallback((html) => {
+    setFormData((prev) => ({ ...prev, content: html }));
+  }, []);
+
+  const addSection = () => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: [...prev.sections, createEmptySection()],
+    }));
+  };
+
+  const updateSectionField = (sectionId, field, value) => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section) =>
+        section.id === sectionId ? { ...section, [field]: value } : section,
+      ),
+    }));
+  };
+
+  const removeSection = (sectionId) => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.filter((section) => section.id !== sectionId),
+    }));
+  };
+
+  const moveSection = (sectionId, direction) => {
+    setFormError('');
+    setFormData((prev) => {
+      const index = prev.sections.findIndex((section) => section.id === sectionId);
+      if (index === -1) return prev;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.sections.length) return prev;
+      return {
+        ...prev,
+        sections: moveItem(prev.sections, index, nextIndex),
+      };
+    });
+  };
+
+  const addCardToSection = (sectionId) => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section) =>
+        section.id === sectionId
+          ? { ...section, items: [...section.items, createEmptyCard()] }
+          : section,
+      ),
+    }));
+  };
+
+  const updateCardField = (sectionId, cardId, field, value) => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        return {
+          ...section,
+          items: section.items.map((card) =>
+            card.id === cardId ? { ...card, [field]: value } : card,
+          ),
+        };
+      }),
+    }));
+  };
+
+  const removeCardFromSection = (sectionId, cardId) => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        return {
+          ...section,
+          items: section.items.filter((card) => card.id !== cardId),
+        };
+      }),
+    }));
+  };
+
+  const moveCard = (sectionId, cardId, direction) => {
+    setFormError('');
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const index = section.items.findIndex((card) => card.id === cardId);
+        if (index === -1) return section;
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= section.items.length) return section;
+        return {
+          ...section,
+          items: moveItem(section.items, index, nextIndex),
+        };
+      }),
+    }));
+  };
+
+  const requestHeroUpload = () => {
+    if (heroUploading) return;
+    const input = heroFileInputRef.current;
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  };
+
+  const handleHeroFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setHeroUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/admin/uploads/content', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok || !data?.url) {
+        throw new Error(data?.message || 'No se pudo subir la imagen destacada.');
+      }
+      setFormData((prev) => ({
+        ...prev,
+        heroImage: data.url,
+      }));
+    } catch (err) {
+      const message = err.message || 'No se pudo subir la imagen destacada.';
+      setFormError(message);
+      if (typeof window !== 'undefined') {
+        window.alert(message);
+      }
+    } finally {
+      setHeroUploading(false);
     }
   };
 
@@ -156,6 +379,7 @@ export default function PagesManager() {
     if (saving) return;
     setSaving(true);
     setError('');
+    setFormError('');
 
     const payload = {
       title: formData.title.trim(),
@@ -169,19 +393,53 @@ export default function PagesManager() {
     };
 
     if (!payload.title) {
-      setError('El titulo es obligatorio.');
+      setFormError('El titulo es obligatorio.');
       setSaving(false);
       return;
     }
     if (!payload.slug) {
       const generated = slugify(payload.title);
       if (!generated) {
-        setError('No se pudo generar un slug valido.');
+        setFormError('No se pudo generar un slug valido.');
         setSaving(false);
         return;
       }
       payload.slug = generated;
     }
+
+    for (const section of formData.sections) {
+      for (const card of section.items) {
+        if (!card.title || !card.title.trim()) {
+          setFormError('Cada tarjeta debe tener un titulo.');
+          setSaving(false);
+          return;
+        }
+      }
+    }
+
+    const normalizedSections = formData.sections
+      .map((section, index) => ({
+        id: section.id || uniqueId('section'),
+        type: 'cards',
+        position: CARD_POSITIONS.some((option) => option.value === section.position)
+          ? section.position
+          : 'main',
+        title: section.title?.trim() || '',
+        description: section.description?.trim() || '',
+        order: index,
+        items: section.items.map((item, itemIndex) => ({
+          id: item.id || uniqueId('card'),
+          title: item.title.trim(),
+          description: item.description?.trim() || '',
+          imageUrl: item.imageUrl?.trim() || '',
+          linkLabel: item.linkLabel?.trim() || '',
+          linkUrl: item.linkUrl?.trim() || '',
+          order: itemIndex,
+        })),
+      }))
+      .filter((section) => section.items.length > 0 || section.title || section.description);
+
+    payload.sections = normalizedSections;
 
     try {
       let res;
@@ -205,7 +463,9 @@ export default function PagesManager() {
       closeDialog();
       await loadPages();
     } catch (err) {
-      setError(err.message || 'Error al guardar la pagina.');
+      const message = err.message || 'Error al guardar la pagina.';
+      setFormError(message);
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -342,7 +602,7 @@ export default function PagesManager() {
                 </div>
               )}
               <div className="mt-4 text-sm text-slate-600 line-clamp-3">
-                {page.content ? page.content.slice(0, 200) : 'Sin contenido.'}
+                {page.content ? excerptFromHtml(page.content) : 'Sin contenido.'}
               </div>
             </article>
           ))}
@@ -429,30 +689,291 @@ export default function PagesManager() {
                   />
                 </label>
                 <label className="space-y-1 text-sm md:col-span-2">
-                  <span className="font-medium text-slate-700">Imagen destacada (URL)</span>
+                  <span className="font-medium text-slate-700">Imagen destacada</span>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="text"
+                      value={formData.heroImage}
+                      onChange={handleFieldChange('heroImage')}
+                      className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="https://..."
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={requestHeroUpload}
+                        disabled={heroUploading}
+                        className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {heroUploading ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                        {heroUploading ? 'Subiendo...' : 'Subir imagen'}
+                      </button>
+                      {formData.heroImage ? (
+                        <a
+                          href={formData.heroImage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50"
+                        >
+                          <LinkIcon size={12} />
+                          Ver
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
                   <input
-                    type="text"
-                    value={formData.heroImage}
-                    onChange={handleFieldChange('heroImage')}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    placeholder="https://..."
+                    ref={heroFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleHeroFileChange}
                   />
+                  <p className="text-xs text-slate-400">
+                    Puedes pegar una URL publica o subir una imagen desde tu dispositivo. Se recomienda usar imagenes horizontales.
+                  </p>
                 </label>
               </div>
 
-              <label className="mt-4 block space-y-1 text-sm">
-                <span className="font-medium text-slate-700">Contenido</span>
-                <textarea
+              <div className="mt-4 space-y-2 text-sm">
+                <span className="font-medium text-slate-700">Contenido enriquecido</span>
+                <RichTextEditor
                   value={formData.content}
-                  onChange={handleFieldChange('content')}
-                  rows={10}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="Puedes usar HTML basico (p, h2, strong, a, ul, etc.) para dar formato al contenido."
+                  onChange={handleContentChange}
+                  placeholder="Describe la pagina con texto enriquecido, imagenes y listas."
                 />
-              </label>
+                <p className="text-xs text-slate-400">
+                  El contenido se almacena en HTML. Puedes insertar imagenes, aplicar colores y resaltar texto.
+                </p>
+              </div>
 
-              {error && (
-                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-slate-700">Secciones de tarjetas</span>
+                    <p className="text-xs text-slate-500">
+                      Configura colecciones de cards para mostrar servicios, beneficios u otras piezas destacadas.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addSection}
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                  >
+                    <Plus size={14} /> Agregar seccion
+                  </button>
+                </div>
+
+                {formData.sections.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                    Aun no has agregado secciones de tarjetas.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {formData.sections.map((section, sectionIndex) => (
+                      <div key={section.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <header className="flex flex-col gap-3 border-b border-slate-100 pb-3 md:flex-row md:items-center md:justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-400">
+                              <GripVertical size={16} />
+                            </span>
+                            <div>
+                              <h3 className="text-sm font-semibold text-slate-800">Seccion {sectionIndex + 1}</h3>
+                              <p className="text-xs text-slate-500">
+                                Posicion:{' '}
+                                {CARD_POSITIONS.find((option) => option.value === section.position)?.label || 'Personalizada'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => moveSection(section.id, -1)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                              disabled={sectionIndex === 0}
+                            >
+                              <ArrowUp size={14} /> Subir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveSection(section.id, 1)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                              disabled={sectionIndex === formData.sections.length - 1}
+                            >
+                              <ArrowDown size={14} /> Bajar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeSection(section.id)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 size={14} /> Eliminar
+                            </button>
+                          </div>
+                        </header>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <label className="space-y-1 text-xs font-medium text-slate-700">
+                            Titulo de la seccion (opcional)
+                            <input
+                              type="text"
+                              value={section.title}
+                              onChange={(event) => updateSectionField(section.id, 'title', event.target.value)}
+                              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-medium text-slate-700">
+                            Posicion
+                            <select
+                              value={section.position}
+                              onChange={(event) => updateSectionField(section.id, 'position', event.target.value)}
+                              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              {CARD_POSITIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
+                            Descripcion (opcional)
+                            <textarea
+                              value={section.description}
+                              onChange={(event) => updateSectionField(section.id, 'description', event.target.value)}
+                              rows={2}
+                              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              placeholder="Texto breve para presentar las tarjetas."
+                            />
+                          </label>
+                        </div>
+
+                        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-slate-800">
+                              Tarjetas ({section.items.length})
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => addCardToSection(section.id)}
+                              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                            >
+                              <Plus size={12} /> Agregar tarjeta
+                            </button>
+                          </div>
+
+                          {section.items.length === 0 ? (
+                            <p className="text-xs text-slate-500">Agrega al menos una tarjeta para esta seccion.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {section.items.map((card, cardIndex) => (
+                                <div key={card.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                                  <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                      <GripVertical size={14} className="text-slate-400" />
+                                      <span>Tarjeta {cardIndex + 1}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => moveCard(section.id, card.id, -1)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                        disabled={cardIndex === 0}
+                                      >
+                                        <ArrowUp size={12} /> Subir
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => moveCard(section.id, card.id, 1)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                        disabled={cardIndex === section.items.length - 1}
+                                      >
+                                        <ArrowDown size={12} /> Bajar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeCardFromSection(section.id, card.id)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                                      >
+                                        <Trash2 size={12} /> Quitar
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      Titulo
+                                      <input
+                                        type="text"
+                                        value={card.title}
+                                        onChange={(event) =>
+                                          updateCardField(section.id, card.id, 'title', event.target.value)
+                                        }
+                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        required
+                                      />
+                                    </label>
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      Imagen (URL opcional)
+                                      <input
+                                        type="text"
+                                        value={card.imageUrl}
+                                        onChange={(event) =>
+                                          updateCardField(section.id, card.id, 'imageUrl', event.target.value)
+                                        }
+                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        placeholder="https://..."
+                                      />
+                                    </label>
+                                    <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
+                                      Descripcion
+                                      <textarea
+                                        value={card.description}
+                                        onChange={(event) =>
+                                          updateCardField(section.id, card.id, 'description', event.target.value)
+                                        }
+                                        rows={2}
+                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        placeholder="Texto breve para esta tarjeta."
+                                      />
+                                    </label>
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      Texto del enlace (opcional)
+                                      <input
+                                        type="text"
+                                        value={card.linkLabel}
+                                        onChange={(event) =>
+                                          updateCardField(section.id, card.id, 'linkLabel', event.target.value)
+                                        }
+                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        placeholder="Ver mas"
+                                      />
+                                    </label>
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      URL del enlace (opcional)
+                                      <input
+                                        type="text"
+                                        value={card.linkUrl}
+                                        onChange={(event) =>
+                                          updateCardField(section.id, card.id, 'linkUrl', event.target.value)
+                                        }
+                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        placeholder="https://..."
+                                      />
+                                    </label>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {formError && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{formError}</div>
               )}
 
               <div className="mt-6 flex justify-end gap-2">

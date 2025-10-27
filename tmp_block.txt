@@ -1,0 +1,68 @@
+<label className="space-y-1 text-sm">
+              <span className="font-medium text-slate-700">Icono (opcional)</span>
+              <input
+                type="text"
+                list="menu-icon-options"
+                value={formData.icon}
+                onChange={updateField('icon')}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="Selecciona o escribe (ej: home, briefcase, mail)"
+              />
+              <datalist id="menu-icon-options">
+                {ICON_LIBRARY.map((option) => (
+                  <option key={option.value || 'none'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </datalist>
+              <p className="text-xs text-slate-400">
+                Usa iconos de Lucide React. Puedes elegir de la lista o escribir el nombre.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span>Vista previa:</span>
+                {iconPreview ? (
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-indigo-600">
+                    <IconRenderer name={formData.icon} size={16} />
+                  </span>
+                ) : (
+                  <span>Sin icono</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, icon: '' }))}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                    formData.icon.trim() === ''
+                      ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                  }`}
+                >
+                  <span className="inline-block h-3 w-3 rounded-full border border-slate-300" />
+                  <span>Sin icono</span>
+                </button>
+                {ICON_LIBRARY.filter((option) => option.value).map((option) => {
+                  const isActive = normalizeIconKey(formData.icon) === normalizeIconKey(option.value);
+                  return (
+                    <button
+                      key={`quick-${option.value}`}
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          icon: option.value,
+                        }))
+                      }
+                      className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                        isActive
+                          ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                      }`}
+                    >
+                      <IconRenderer name={option.value} size={14} />
+                      <span>{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </label>

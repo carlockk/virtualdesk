@@ -1,5 +1,39 @@
 import mongoose from 'mongoose';
 
+const PageSectionCardSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      default: () => new mongoose.Types.ObjectId().toString(),
+    },
+    title: { type: String, required: true, trim: true, maxlength: 120 },
+    description: { type: String, default: '', trim: true, maxlength: 500 },
+    imageUrl: { type: String, default: '', trim: true, maxlength: 2048 },
+    linkLabel: { type: String, default: '', trim: true, maxlength: 80 },
+    linkUrl: { type: String, default: '', trim: true, maxlength: 2048 },
+    order: { type: Number, default: 0 },
+  },
+  { _id: false },
+);
+
+const PageSectionSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      default: () => new mongoose.Types.ObjectId().toString(),
+    },
+    type: { type: String, enum: ['cards'], default: 'cards' },
+    position: { type: String, enum: ['belowTitle', 'main', 'afterContent'], default: 'main' },
+    title: { type: String, default: '', trim: true, maxlength: 120 },
+    description: { type: String, default: '', trim: true, maxlength: 500 },
+    order: { type: Number, default: 0 },
+    items: { type: [PageSectionCardSchema], default: [] },
+  },
+  { _id: false },
+);
+
 const PageSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, maxlength: 120 },
@@ -11,6 +45,7 @@ const PageSchema = new mongoose.Schema(
     status: { type: String, enum: ['draft', 'published'], default: 'published' },
     order: { type: Number, default: 0 },
     system: { type: Boolean, default: false },
+    sections: { type: [PageSectionSchema], default: [] },
   },
   { timestamps: true },
 );

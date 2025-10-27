@@ -1,7 +1,8 @@
+import crypto from 'crypto';
 import { z } from 'zod';
 import { dbConnect } from '@/lib/mongodb';
 import Page from '@/models/Page';
-import { ensureAdmin, ensureDefaultPages, serializePage, slugify } from '@/lib/pages-admin';
+import { ensureAdmin, ensureDefaultPages, normalizeSectionPayload, serializePage, slugify } from '@/lib/pages-admin';
 
 function json(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -10,6 +11,30 @@ function json(body, init = {}) {
     ...init,
   });
 }
+
+const cardItemSchema = z
+  .object({
+    id: z.string().trim().max(120).optional(),
+    title: z.string().trim().min(1, 'La tarjeta debe tener un titulo.').max(120),
+    description: z.string().trim().max(500).optional(),
+    imageUrl: z.string().trim().max(2048).optional(),
+    linkLabel: z.string().trim().max(80).optional(),
+    linkUrl: z.string().trim().max(2048).optional(),
+    order: z.number().int().optional(),
+  })
+  .strict();
+
+const sectionSchema = z
+  .object({
+    id: z.string().trim().max(120).optional(),
+    type: z.literal('cards').optional(),
+    position: z.enum(['belowTitle', 'main', 'afterContent']).optional(),
+    title: z.string().trim().max(120).optional(),
+    description: z.string().trim().max(500).optional(),
+    order: z.number().int().optional(),
+    items: z.array(cardItemSchema).optional(),
+  })
+  .strict();
 
 const createSchema = z
   .object({
@@ -21,6 +46,7 @@ const createSchema = z
     status: z.enum(['draft', 'published']).optional(),
     order: z.number().int().optional(),
     path: z.string().trim().max(200).optional(),
+    sections: z.array(sectionSchema).optional(),
   })
   .strict();
 
@@ -78,6 +104,18 @@ export async function POST(req) {
     }
 
     const path = normalizePath(data.path || '', finalSlug);
+    const rawSections = Array.isArray(data.sections) ? data.sections : [];
+    const normalizedSections = normalizeSectionPayload(rawSections).map((section, index) => ({
+      ...section,
+      id: section.id || crypto.randomUUID(),
+      position: section.position || 'main',
+      order: index,
+      items: section.items.map((item, itemIndex) => ({
+        ...item,
+        id: item.id || crypto.randomUUID(),
+        order: itemIndex,
+      })),
+    }));
 
     const pageDoc = await Page.create({
       title: data.title.trim(),
@@ -89,6 +127,7 @@ export async function POST(req) {
       status: data.status || 'published',
       order: data.order ?? 0,
       system: false,
+      sections: normalizedSections,
     });
 
     return json({ ok: true, page: serializePage(pageDoc) }, { status: 201 });
