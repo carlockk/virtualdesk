@@ -53,14 +53,19 @@ function excerptFromHtml(html, maxLength = 200) {
   if (!html) return '';
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength).trim()}…`;
+  return `${text.slice(0, maxLength).trim()}...`;
 }
 
-const CARD_POSITIONS = [
+const SECTION_POSITIONS = [
   { value: 'belowTitle', label: 'Debajo del titulo' },
   { value: 'main', label: 'Antes del contenido principal' },
   { value: 'afterContent', label: 'Debajo de la descripcion' },
 ];
+
+const SECTION_TYPE_LABELS = {
+  cards: 'Seccion de tarjetas',
+  slider: 'Seccion de slider',
+};
 
 function uniqueId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -79,10 +84,10 @@ function prepareSectionsForForm(sections = []) {
   return sections
     .slice()
     .sort((a, b) => (a.order || 0) - (b.order || 0))
-    .filter((section) => section && section.type === 'cards')
+    .filter((section) => section && (section.type === 'cards' || section.type === 'slider'))
     .map((section) => ({
       id: section.id || uniqueId('section'),
-      type: 'cards',
+      type: section.type === 'slider' ? 'slider' : 'cards',
       position: section.position || 'main',
       title: section.title || '',
       description: section.description || '',
@@ -111,9 +116,18 @@ const createEmptyCard = () => ({
   linkUrl: '',
 });
 
-const createEmptySection = () => ({
+const createEmptySlide = () => ({
+  id: uniqueId('slide'),
+  title: '',
+  description: '',
+  imageUrl: '',
+  linkLabel: '',
+  linkUrl: '',
+});
+
+const createEmptySection = (type = 'cards') => ({
   id: uniqueId('section'),
-  type: 'cards',
+  type,
   position: 'main',
   title: '',
   description: '',
@@ -215,11 +229,11 @@ export default function PagesManager() {
     setFormData((prev) => ({ ...prev, content: html }));
   }, []);
 
-  const addSection = () => {
+  const addSection = (type = 'cards') => {
     setFormError('');
     setFormData((prev) => ({
       ...prev,
-      sections: [...prev.sections, createEmptySection()],
+      sections: [...prev.sections, createEmptySection(type)],
     }));
   };
 
@@ -255,19 +269,22 @@ export default function PagesManager() {
     });
   };
 
-  const addCardToSection = (sectionId) => {
+  const addItemToSection = (sectionId) => {
     setFormError('');
     setFormData((prev) => ({
       ...prev,
-      sections: prev.sections.map((section) =>
-        section.id === sectionId
-          ? { ...section, items: [...section.items, createEmptyCard()] }
-          : section,
-      ),
+      sections: prev.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const factory = section.type === 'slider' ? createEmptySlide : createEmptyCard;
+        return {
+          ...section,
+          items: [...section.items, factory()],
+        };
+      }),
     }));
   };
 
-  const updateCardField = (sectionId, cardId, field, value) => {
+  const updateItemField = (sectionId, itemId, field, value) => {
     setFormError('');
     setFormData((prev) => ({
       ...prev,
@@ -275,15 +292,15 @@ export default function PagesManager() {
         if (section.id !== sectionId) return section;
         return {
           ...section,
-          items: section.items.map((card) =>
-            card.id === cardId ? { ...card, [field]: value } : card,
+          items: section.items.map((item) =>
+            item.id === itemId ? { ...item, [field]: value } : item,
           ),
         };
       }),
     }));
   };
 
-  const removeCardFromSection = (sectionId, cardId) => {
+  const removeItemFromSection = (sectionId, itemId) => {
     setFormError('');
     setFormData((prev) => ({
       ...prev,
@@ -291,19 +308,19 @@ export default function PagesManager() {
         if (section.id !== sectionId) return section;
         return {
           ...section,
-          items: section.items.filter((card) => card.id !== cardId),
+          items: section.items.filter((item) => item.id !== itemId),
         };
       }),
     }));
   };
 
-  const moveCard = (sectionId, cardId, direction) => {
+  const moveItemWithinSection = (sectionId, itemId, direction) => {
     setFormError('');
     setFormData((prev) => ({
       ...prev,
       sections: prev.sections.map((section) => {
         if (section.id !== sectionId) return section;
-        const index = section.items.findIndex((card) => card.id === cardId);
+        const index = section.items.findIndex((item) => item.id === itemId);
         if (index === -1) return section;
         const nextIndex = index + direction;
         if (nextIndex < 0 || nextIndex >= section.items.length) return section;
@@ -408,35 +425,57 @@ export default function PagesManager() {
     }
 
     for (const section of formData.sections) {
-      for (const card of section.items) {
-        if (!card.title || !card.title.trim()) {
-          setFormError('Cada tarjeta debe tener un titulo.');
+      if (section.type === 'slider') {
+        if (!section.items.length) {
+          setFormError('Cada slider debe tener al menos una diapositiva.');
           setSaving(false);
           return;
+        }
+        for (const slide of section.items) {
+          if (!slide.imageUrl || !slide.imageUrl.trim()) {
+            setFormError('Cada diapositiva debe tener una imagen.');
+            setSaving(false);
+            return;
+          }
+        }
+      } else {
+        for (const card of section.items) {
+          if (!card.title || !card.title.trim()) {
+            setFormError('Cada tarjeta debe tener un titulo.');
+            setSaving(false);
+            return;
+          }
         }
       }
     }
 
     const normalizedSections = formData.sections
-      .map((section, index) => ({
-        id: section.id || uniqueId('section'),
-        type: 'cards',
-        position: CARD_POSITIONS.some((option) => option.value === section.position)
-          ? section.position
-          : 'main',
-        title: section.title?.trim() || '',
-        description: section.description?.trim() || '',
-        order: index,
-        items: section.items.map((item, itemIndex) => ({
-          id: item.id || uniqueId('card'),
-          title: item.title.trim(),
-          description: item.description?.trim() || '',
-          imageUrl: item.imageUrl?.trim() || '',
-          linkLabel: item.linkLabel?.trim() || '',
-          linkUrl: item.linkUrl?.trim() || '',
-          order: itemIndex,
-        })),
-      }))
+      .map((section, index) => {
+        const type = section.type === 'slider' ? 'slider' : 'cards';
+        const items = section.items
+          .map((item, itemIndex) => ({
+            id: item.id || uniqueId(type === 'slider' ? 'slide' : 'card'),
+            title: item.title?.trim() || '',
+            description: item.description?.trim() || '',
+            imageUrl: item.imageUrl?.trim() || '',
+            linkLabel: item.linkLabel?.trim() || '',
+            linkUrl: item.linkUrl?.trim() || '',
+            order: itemIndex,
+          }))
+          .filter((item) => (type === 'slider' ? Boolean(item.imageUrl) : Boolean(item.title)));
+
+        return {
+          id: section.id || uniqueId('section'),
+          type,
+          position: SECTION_POSITIONS.some((option) => option.value === section.position)
+            ? section.position
+            : 'main',
+          title: section.title?.trim() || '',
+          description: section.description?.trim() || '',
+          order: index,
+          items,
+        };
+      })
       .filter((section) => section.items.length > 0 || section.title || section.description);
 
     payload.sections = normalizedSections;
@@ -472,7 +511,7 @@ export default function PagesManager() {
   };
 
   const handleDelete = async (page) => {
-    const confirmed = window.confirm(`¿Eliminar la pagina "${page.title}"? Esta accion no se puede deshacer.`);
+    const confirmed = window.confirm(`Eliminar la pagina "${page.title}"? Esta accion no se puede deshacer.`);
     if (!confirmed) return;
     try {
       setDeletingId(page.id);
@@ -747,231 +786,318 @@ export default function PagesManager() {
               </div>
 
               <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <span className="font-medium text-slate-700">Secciones de tarjetas</span>
+                    <span className="font-medium text-slate-700">Secciones de la pagina</span>
                     <p className="text-xs text-slate-500">
-                      Configura colecciones de cards para mostrar servicios, beneficios u otras piezas destacadas.
+                      Inserta bloques de tarjetas o sliders y decide donde se mostraran dentro del contenido.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={addSection}
-                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-                  >
-                    <Plus size={14} /> Agregar seccion
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => addSection('cards')}
+                      className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                    >
+                      <Plus size={14} /> Seccion de tarjetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addSection('slider')}
+                      className="inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
+                    >
+                      <Plus size={14} /> Seccion slider
+                    </button>
+                  </div>
                 </div>
 
                 {formData.sections.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                    Aun no has agregado secciones de tarjetas.
+                    Aun no has agregado secciones para esta pagina.
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {formData.sections.map((section, sectionIndex) => (
-                      <div key={section.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <header className="flex flex-col gap-3 border-b border-slate-100 pb-3 md:flex-row md:items-center md:justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-400">
-                              <GripVertical size={16} />
-                            </span>
-                            <div>
-                              <h3 className="text-sm font-semibold text-slate-800">Seccion {sectionIndex + 1}</h3>
+                    {formData.sections.map((section, sectionIndex) => {
+                      const typeLabel = SECTION_TYPE_LABELS[section.type] || SECTION_TYPE_LABELS.cards;
+                      const pluralLabel = section.type === 'slider' ? 'Diapositivas' : 'Tarjetas';
+                      const singularLabel = section.type === 'slider' ? 'Diapositiva' : 'Tarjeta';
+
+                      return (
+                        <div key={section.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <header className="flex flex-col gap-3 border-b border-slate-100 pb-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-400">
+                                <GripVertical size={16} />
+                              </span>
+                              <div>
+                                <h3 className="text-sm font-semibold text-slate-800">
+                                  Seccion {sectionIndex + 1} - {typeLabel}
+                                </h3>
+                                <p className="text-xs text-slate-500">
+                                  Posicion:{' '}
+                                  {SECTION_POSITIONS.find((option) => option.value === section.position)?.label || 'Personalizada'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => moveSection(section.id, -1)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                disabled={sectionIndex === 0}
+                              >
+                                <ArrowUp size={14} /> Subir
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveSection(section.id, 1)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                disabled={sectionIndex === formData.sections.length - 1}
+                              >
+                                <ArrowDown size={14} /> Bajar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeSection(section.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 size={14} /> Eliminar
+                              </button>
+                            </div>
+                          </header>
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="space-y-1 text-xs font-medium text-slate-700">
+                              Titulo de la seccion (opcional)
+                              <input
+                                type="text"
+                                value={section.title}
+                                onChange={(event) => updateSectionField(section.id, 'title', event.target.value)}
+                                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </label>
+                            <label className="space-y-1 text-xs font-medium text-slate-700">
+                              Posicion
+                              <select
+                                value={section.position}
+                                onChange={(event) => updateSectionField(section.id, 'position', event.target.value)}
+                                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              >
+                                {SECTION_POSITIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
+                              Descripcion (opcional)
+                              <textarea
+                                value={section.description}
+                                onChange={(event) => updateSectionField(section.id, 'description', event.target.value)}
+                                rows={2}
+                                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder="Texto breve para presentar esta seccion."
+                              />
+                            </label>
+                          </div>
+
+                          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-semibold text-slate-800">
+                                {pluralLabel} ({section.items.length})
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => addItemToSection(section.id)}
+                                className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                              >
+                                <Plus size={12} /> Agregar {singularLabel.toLowerCase()}
+                              </button>
+                            </div>
+
+                            {section.items.length === 0 ? (
                               <p className="text-xs text-slate-500">
-                                Posicion:{' '}
-                                {CARD_POSITIONS.find((option) => option.value === section.position)?.label || 'Personalizada'}
+                                {section.type === 'slider'
+                                  ? 'Agrega al menos una diapositiva para este slider.'
+                                  : 'Agrega al menos una tarjeta para esta seccion.'}
                               </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => moveSection(section.id, -1)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                              disabled={sectionIndex === 0}
-                            >
-                              <ArrowUp size={14} /> Subir
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveSection(section.id, 1)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                              disabled={sectionIndex === formData.sections.length - 1}
-                            >
-                              <ArrowDown size={14} /> Bajar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeSection(section.id)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 size={14} /> Eliminar
-                            </button>
-                          </div>
-                        </header>
-
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <label className="space-y-1 text-xs font-medium text-slate-700">
-                            Titulo de la seccion (opcional)
-                            <input
-                              type="text"
-                              value={section.title}
-                              onChange={(event) => updateSectionField(section.id, 'title', event.target.value)}
-                              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-700">
-                            Posicion
-                            <select
-                              value={section.position}
-                              onChange={(event) => updateSectionField(section.id, 'position', event.target.value)}
-                              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            >
-                              {CARD_POSITIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
-                            Descripcion (opcional)
-                            <textarea
-                              value={section.description}
-                              onChange={(event) => updateSectionField(section.id, 'description', event.target.value)}
-                              rows={2}
-                              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              placeholder="Texto breve para presentar las tarjetas."
-                            />
-                          </label>
-                        </div>
-
-                        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-semibold text-slate-800">
-                              Tarjetas ({section.items.length})
-                            </h4>
-                            <button
-                              type="button"
-                              onClick={() => addCardToSection(section.id)}
-                              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
-                            >
-                              <Plus size={12} /> Agregar tarjeta
-                            </button>
-                          </div>
-
-                          {section.items.length === 0 ? (
-                            <p className="text-xs text-slate-500">Agrega al menos una tarjeta para esta seccion.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {section.items.map((card, cardIndex) => (
-                                <div key={card.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                                  <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 md:flex-row md:items-center md:justify-between">
-                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                      <GripVertical size={14} className="text-slate-400" />
-                                      <span>Tarjeta {cardIndex + 1}</span>
+                            ) : (
+                              <div className="space-y-3">
+                                {section.items.map((item, itemIndex) => (
+                                  <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                                    <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 md:flex-row md:items-center md:justify-between">
+                                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                                        <GripVertical size={14} className="text-slate-400" />
+                                        <span>
+                                          {singularLabel} {itemIndex + 1}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => moveItemWithinSection(section.id, item.id, -1)}
+                                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                          disabled={itemIndex === 0}
+                                        >
+                                          <ArrowUp size={12} /> Subir
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => moveItemWithinSection(section.id, item.id, 1)}
+                                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                          disabled={itemIndex === section.items.length - 1}
+                                        >
+                                          <ArrowDown size={12} /> Bajar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeItemFromSection(section.id, item.id)}
+                                          className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                                        >
+                                          <Trash2 size={12} /> Quitar
+                                        </button>
+                                      </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => moveCard(section.id, card.id, -1)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                                        disabled={cardIndex === 0}
-                                      >
-                                        <ArrowUp size={12} /> Subir
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => moveCard(section.id, card.id, 1)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                                        disabled={cardIndex === section.items.length - 1}
-                                      >
-                                        <ArrowDown size={12} /> Bajar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeCardFromSection(section.id, card.id)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
-                                      >
-                                        <Trash2 size={12} /> Quitar
-                                      </button>
-                                    </div>
-                                  </div>
 
-                                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
-                                      Titulo
-                                      <input
-                                        type="text"
-                                        value={card.title}
-                                        onChange={(event) =>
-                                          updateCardField(section.id, card.id, 'title', event.target.value)
-                                        }
-                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        required
-                                      />
-                                    </label>
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
-                                      Imagen (URL opcional)
-                                      <input
-                                        type="text"
-                                        value={card.imageUrl}
-                                        onChange={(event) =>
-                                          updateCardField(section.id, card.id, 'imageUrl', event.target.value)
-                                        }
-                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="https://..."
-                                      />
-                                    </label>
-                                    <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
-                                      Descripcion
-                                      <textarea
-                                        value={card.description}
-                                        onChange={(event) =>
-                                          updateCardField(section.id, card.id, 'description', event.target.value)
-                                        }
-                                        rows={2}
-                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="Texto breve para esta tarjeta."
-                                      />
-                                    </label>
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
-                                      Texto del enlace (opcional)
-                                      <input
-                                        type="text"
-                                        value={card.linkLabel}
-                                        onChange={(event) =>
-                                          updateCardField(section.id, card.id, 'linkLabel', event.target.value)
-                                        }
-                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="Ver mas"
-                                      />
-                                    </label>
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
-                                      URL del enlace (opcional)
-                                      <input
-                                        type="text"
-                                        value={card.linkUrl}
-                                        onChange={(event) =>
-                                          updateCardField(section.id, card.id, 'linkUrl', event.target.value)
-                                        }
-                                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="https://..."
-                                      />
-                                    </label>
+                                    {section.type === 'slider' ? (
+                                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                        <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
+                                          Imagen (URL requerida)
+                                          <input
+                                            type="text"
+                                            value={item.imageUrl}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'imageUrl', event.target.value)
+                                            }
+                                            required
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="https://..."
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          Titulo (opcional)
+                                          <input
+                                            type="text"
+                                            value={item.title}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'title', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          Descripcion (opcional)
+                                          <textarea
+                                            value={item.description}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'description', event.target.value)
+                                            }
+                                            rows={2}
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="Texto para acompanar la imagen."
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          Texto del enlace (opcional)
+                                          <input
+                                            type="text"
+                                            value={item.linkLabel}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'linkLabel', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="Ver mas"
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          URL del enlace (opcional)
+                                          <input
+                                            type="text"
+                                            value={item.linkUrl}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'linkUrl', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="https://..."
+                                          />
+                                        </label>
+                                      </div>
+                                    ) : (
+                                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          Titulo
+                                          <input
+                                            type="text"
+                                            value={item.title}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'title', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            required
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          Imagen (URL opcional)
+                                          <input
+                                            type="text"
+                                            value={item.imageUrl}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'imageUrl', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="https://..."
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700 md:col-span-2">
+                                          Descripcion
+                                          <textarea
+                                            value={item.description}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'description', event.target.value)
+                                            }
+                                            rows={2}
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="Texto breve para esta tarjeta."
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          Texto del enlace (opcional)
+                                          <input
+                                            type="text"
+                                            value={item.linkLabel}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'linkLabel', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="Ver mas"
+                                          />
+                                        </label>
+                                        <label className="space-y-1 text-xs font-medium text-slate-700">
+                                          URL del enlace (opcional)
+                                          <input
+                                            type="text"
+                                            value={item.linkUrl}
+                                            onChange={(event) =>
+                                              updateItemField(section.id, item.id, 'linkUrl', event.target.value)
+                                            }
+                                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="https://..."
+                                          />
+                                        </label>
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
-
               {formError && (
                 <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{formError}</div>
               )}
@@ -1000,3 +1126,6 @@ export default function PagesManager() {
     </div>
   );
 }
+
+
+

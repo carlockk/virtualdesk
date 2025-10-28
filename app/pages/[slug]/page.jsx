@@ -1,5 +1,6 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import PageSliderSection from '@/components/PageSliderSection';
 import { Suspense, cache } from 'react';
 import { notFound } from 'next/navigation';
 import { dbConnect } from '@/lib/mongodb';
@@ -128,7 +129,11 @@ export default async function DynamicPage({ params }) {
           {page.summary ? <p className="mt-4 max-w-3xl text-slate-300">{page.summary}</p> : null}
           {heroSections.map((section) => (
             <div key={section.id} className="mt-10">
-              <CardsSection section={section} variant="hero" />
+              {section.type === 'slider' ? (
+                <PageSliderSection section={section} variant="hero" />
+              ) : (
+                <CardsSection section={section} variant="hero" />
+              )}
             </div>
           ))}
         </div>
@@ -141,7 +146,11 @@ export default async function DynamicPage({ params }) {
           ) : null}
 
           {mainSections.map((section) => (
-            <CardsSection key={section.id} section={section} />
+            section.type === 'slider' ? (
+              <PageSliderSection key={section.id} section={section} />
+            ) : (
+              <CardsSection key={section.id} section={section} />
+            )
           ))}
 
           <article
@@ -154,7 +163,11 @@ export default async function DynamicPage({ params }) {
           />
 
           {afterSections.map((section) => (
-            <CardsSection key={section.id} section={section} />
+            section.type === 'slider' ? (
+              <PageSliderSection key={section.id} section={section} />
+            ) : (
+              <CardsSection key={section.id} section={section} />
+            )
           ))}
         </div>
       </section>

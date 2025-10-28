@@ -1,28 +1,110 @@
 'use client';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import Link from 'next/link';
-import { Suspense, useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-import { Briefcase, Mail, Zap, ShieldCheck, Star } from 'lucide-react';
 import WorksShowcase from '@/components/WorksShowcase';
+import IconRenderer from '@/components/IconRenderer';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Zap, ShieldCheck, Star } from 'lucide-react';
+import { DEFAULT_HERO } from '@/lib/hero-defaults';
 
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 
-const slides = [
-  'https://images.unsplash.com/photo-1556761175-b413da4baf72?q=80&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1521737711867-e3b97375f902?q=80&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1551836022-4c4c79ecde51?q=80&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1551434678-e076c223a692?q=80&w=1920&auto=format&fit=crop',
-];
+function normalizeHeroState(raw) {
+  const base = raw && typeof raw === 'object' ? raw : {};
+  const slides =
+    Array.isArray(base.slides) && base.slides.length ? base.slides : DEFAULT_HERO.slides;
+  const buttons =
+    Array.isArray(base.buttons) && base.buttons.length ? base.buttons : DEFAULT_HERO.buttons;
+
+  return {
+    ...DEFAULT_HERO,
+    ...base,
+    title: {
+      ...DEFAULT_HERO.title,
+      ...(base.title || {}),
+    },
+    subtitle: {
+      ...DEFAULT_HERO.subtitle,
+      ...(base.subtitle || {}),
+    },
+    heroImage: typeof base.heroImage === 'string' ? base.heroImage : DEFAULT_HERO.heroImage,
+    slides,
+    buttons,
+  };
+}
 
 export default function HomePage() {
-  const [i, setI] = useState(0);
+  const [hero, setHero] = useState(() => normalizeHeroState());
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    const t = setInterval(() => setI((p) => (p + 1) % slides.length), 4000);
-    return () => clearInterval(t);
+    let active = true;
+    fetch('/api/hero', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Error al cargar hero'))))
+      .then((data) => {
+        if (!active) return;
+        if (data?.hero) {
+          setHero(normalizeHeroState(data.hero));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setHero(normalizeHeroState());
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const heroSlides = useMemo(() => {
+    const source =
+      Array.isArray(hero.slides) && hero.slides.length ? hero.slides : DEFAULT_HERO.slides;
+    return source
+      .map((slide, index) => ({
+        id: slide.id || `slide-${index}`,
+        imageUrl: slide.imageUrl || '',
+      }))
+      .filter((slide) => slide.imageUrl);
+  }, [hero.slides]);
+
+  const heroButtons = useMemo(() => {
+    const source =
+      Array.isArray(hero.buttons) && hero.buttons.length ? hero.buttons : DEFAULT_HERO.buttons;
+    return source
+      .filter((button) => button.visible !== false && button.label && button.href)
+      .map((button, index) => ({
+        ...button,
+        id: button.id || `button-${index}`,
+        label: button.label.trim(),
+        href: button.href.trim(),
+        icon: button.icon || '',
+      }));
+  }, [hero.buttons]);
+
+  const sliderActive = hero.visible !== false && heroSlides.length > 0;
+  const heroHeight = Math.min(Math.max(hero.height ?? DEFAULT_HERO.height, 40), 120);
+  const heroTitle = hero.title?.text?.trim() || DEFAULT_HERO.title.text;
+  const heroTitleVisible = hero.title?.visible !== false;
+  const heroSubtitle = hero.subtitle?.text?.trim() || DEFAULT_HERO.subtitle.text;
+  const heroSubtitleVisible = hero.subtitle?.visible !== false;
+  const heroBackgroundImage = !sliderActive
+    ? hero.heroImage?.trim() || heroSlides[0]?.imageUrl || DEFAULT_HERO.heroImage
+    : null;
+
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [sliderActive, heroSlides.length]);
+
+  useEffect(() => {
+    if (!sliderActive || heroSlides.length <= 1) return undefined;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [sliderActive, heroSlides.length]);
 
   return (
     <main className="flex-1 flex flex-col">
@@ -31,45 +113,57 @@ export default function HomePage() {
       </Suspense>
 
       {/* === SLIDER === */}
-      <section className="relative w-full h-[80vh] overflow-hidden -mt-10 md:-mt-14">
-        {slides.map((src, idx) => (
-          <img
-            key={idx}
-            src={src}
-            alt={`slide-${idx}`}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-              idx === i ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
-        ))}
+      <section
+        className="relative w-full overflow-hidden -mt-10 md:-mt-14"
+        style={{ height: `${heroHeight}vh` }}
+      >
+        {sliderActive
+          ? heroSlides.map((slide, idx) => (
+              <img
+                key={slide.id || `slide-${idx}`}
+                src={slide.imageUrl}
+                alt={heroTitle ? `${heroTitle} - fondo ${idx + 1}` : `slide-${idx}`}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+                  idx === currentSlide ? 'opacity-100' : 'opacity-0'
+                }`}
+                loading={idx === 0 ? 'eager' : 'lazy'}
+              />
+            ))
+          : heroBackgroundImage
+          ? (
+              <img
+                src={heroBackgroundImage}
+                alt={heroTitle ? `${heroTitle} - fondo principal` : 'hero-background'}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="eager"
+              />
+            )
+          : (
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 via-purple-600 to-indigo-900" />
+            )}
 
-        <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-center px-4">
-          <h2 className="text-5xl md:text-6xl font-extrabold text-white drop-shadow-lg mb-4">
-            Soluciones Integrales de Software
-          </h2>
-          <p className="text-lg md:text-xl text-white/90 max-w-2xl mb-8">
-            Transformamos ideas en productos digitales escalables y robustos.
-          </p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 px-4 text-center">
+          {heroTitleVisible ? (
+            <h2 className="mb-4 text-5xl font-extrabold text-white drop-shadow-lg md:text-6xl">{heroTitle}</h2>
+          ) : null}
+          {heroSubtitleVisible ? (
+            <p className="mb-8 max-w-2xl text-lg text-white/90 md:text-xl">{heroSubtitle}</p>
+          ) : null}
 
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <Link
-              href="/services"
-              className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-lg md:text-xl font-semibold
-                         bg-white text-indigo-700 border border-white shadow-lg hover:bg-white/90 active:scale-[0.99]"
-            >
-              <Briefcase size={22} />
-              Explorar servicios
-            </Link>
-
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-lg md:text-xl font-semibold
-                         bg-white text-indigo-700 border border-white shadow-lg hover:bg-white/90 active:scale-[0.99]"
-            >
-              <Mail size={22} />
-              Contacto
-            </Link>
-          </div>
+          {heroButtons.length > 0 ? (
+            <div className="flex flex-col items-center gap-4 sm:flex-row">
+              {heroButtons.map((button, index) => (
+                <Link
+                  key={button.id || `${button.href}-${index}`}
+                  href={button.href}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white bg-white px-8 py-4 text-lg font-semibold text-indigo-700 shadow-lg transition hover:bg-white/90 active:scale-[0.99] md:text-xl"
+                >
+                  {button.icon ? <IconRenderer name={button.icon} size={22} /> : null}
+                  {button.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 

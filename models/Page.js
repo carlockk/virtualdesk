@@ -1,13 +1,13 @@
 import mongoose from 'mongoose';
 
-const PageSectionCardSchema = new mongoose.Schema(
+const PageSectionItemSchema = new mongoose.Schema(
   {
     id: {
       type: String,
       required: true,
       default: () => new mongoose.Types.ObjectId().toString(),
     },
-    title: { type: String, required: true, trim: true, maxlength: 120 },
+    title: { type: String, default: '', trim: true, maxlength: 120 },
     description: { type: String, default: '', trim: true, maxlength: 500 },
     imageUrl: { type: String, default: '', trim: true, maxlength: 2048 },
     linkLabel: { type: String, default: '', trim: true, maxlength: 80 },
@@ -24,12 +24,12 @@ const PageSectionSchema = new mongoose.Schema(
       required: true,
       default: () => new mongoose.Types.ObjectId().toString(),
     },
-    type: { type: String, enum: ['cards'], default: 'cards' },
+    type: { type: String, enum: ['cards', 'slider'], default: 'cards' },
     position: { type: String, enum: ['belowTitle', 'main', 'afterContent'], default: 'main' },
     title: { type: String, default: '', trim: true, maxlength: 120 },
     description: { type: String, default: '', trim: true, maxlength: 500 },
     order: { type: Number, default: 0 },
-    items: { type: [PageSectionCardSchema], default: [] },
+    items: { type: [PageSectionItemSchema], default: [] },
   },
   { _id: false },
 );

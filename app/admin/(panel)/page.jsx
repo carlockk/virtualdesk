@@ -75,15 +75,6 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Siguientes pasos recomendados</h2>
-        <ul className="mt-3 space-y-2 text-sm text-slate-600">
-          <li>• Crea o actualiza los servicios que ofreces desde la seccion Servicios.</li>
-          <li>• Administra el equipo con cuentas de administrador adicionales.</li>
-          <li>• Carga los trabajos mas recientes para mostrarlos en la web.</li>
-          <li>• Revisa el centro de mensajes para responder solicitudes de clientes.</li>
-        </ul>
-      </div>
     </div>
   );
 }

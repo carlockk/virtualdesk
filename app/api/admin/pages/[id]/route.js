@@ -17,17 +17,39 @@ const cardItemSchema = z
   })
   .strict();
 
-const sectionSchema = z
+const sliderItemSchema = z
   .object({
     id: z.string().trim().max(120).optional(),
-    type: z.literal('cards').optional(),
+    title: z.string().trim().max(120).optional(),
+    description: z.string().trim().max(500).optional(),
+    imageUrl: z.string().trim().min(1, 'Cada diapositiva debe tener una imagen.').max(2048),
+    linkLabel: z.string().trim().max(80).optional(),
+    linkUrl: z.string().trim().max(2048).optional(),
+    order: z.number().int().optional(),
+  })
+  .strict();
+
+const baseSectionSchema = z
+  .object({
+    id: z.string().trim().max(120).optional(),
     position: z.enum(['belowTitle', 'main', 'afterContent']).optional(),
     title: z.string().trim().max(120).optional(),
     description: z.string().trim().max(500).optional(),
     order: z.number().int().optional(),
-    items: z.array(cardItemSchema).optional(),
   })
   .strict();
+
+const cardSectionSchema = baseSectionSchema.extend({
+  type: z.literal('cards').optional(),
+  items: z.array(cardItemSchema).optional(),
+});
+
+const sliderSectionSchema = baseSectionSchema.extend({
+  type: z.literal('slider'),
+  items: z.array(sliderItemSchema).optional(),
+});
+
+const sectionSchema = z.union([cardSectionSchema, sliderSectionSchema]);
 
 const updateSchema = z
   .object({
