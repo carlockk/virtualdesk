@@ -225,7 +225,7 @@ export default function Header() {
     const actions = [];
 
     if (isSuperAdmin) {
-      actions.push({ type: 'link', label: 'Centro admin', href: '/admin/messages' });
+      actions.push({ type: 'link', label: 'Centro admin', href: '/admin' });
       actions.push({ type: 'link', label: 'Crear super admin', href: '/admin/bootstrap' });
     } else if (isAdmin) {
       actions.push({ type: 'link', label: 'Panel admin', href: '/admin' });
@@ -440,7 +440,7 @@ export default function Header() {
                   </Link>
                   {isSuperAdmin ? (
                     <Link
-                      href="/admin/messages"
+                      href="/admin"
                       className="block rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-center font-medium text-indigo-700 hover:bg-indigo-100"
                       onClick={closeMobile}
                     >
